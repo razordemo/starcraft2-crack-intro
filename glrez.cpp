@@ -1,0 +1,2463 @@
+#include <windows.h>
+#include <stdio.h>
+#include <math.h>
+#include <gl\gl.h>
+#include <gl\glu.h>
+#include <gl\glaux.h>
+#include "resource.h"
+#include "timer.h"
+#include "minifmod.h"
+
+#define DEBUG 0						// debug [0/1]
+#define START 4						// part to start
+#define PI 3.14159265358979323846f // pi
+#define PID PI/180.0f			// pi ratio
+#define CR 1.0f/256.0f		// color ratio
+#define SNG true					// music flag
+
+Timer *timer;
+float timer_global=0;
+float timer_global_previous=0;
+float timer_global_buffer=0;
+float timer_fps=0;
+float timer_fps_total=0;
+float timer_fps_average=0;
+float timer_fps_min=32768;
+float timer_fps_max=0;
+int timer_frame=0;
+int frame_counter=0;
+int frame_total=0;
+bool done=false;
+
+#ifdef SNG
+	FMUSIC_MODULE *mod;		// music handle
+	int mod_ord=-1;				// pattern order
+	int mod_row=-1;				// row number
+	int mod_prv_row=0;		// previous row number
+	int mod_time=0;				// time
+	bool mod_play=false;	// flag
+#endif
+
+#define GEAR1_LIST 1
+#define GEAR2_LIST 2
+#define GEAR3_LIST 3
+#define GEAR4_LIST 4
+#define GEAR5_LIST 5
+#define GEAR6_LIST 6
+#define GEAR7_LIST 7
+#define GEAR2D1_LIST 8
+#define GEAR2D2_LIST 9
+#define GEAR2D3_LIST 10
+#define GEAR2D4_LIST 11
+#define GRADIENT_LIST 12
+#define BORDER_LIST 13
+
+HDC				hDC=NULL;			// GDI device context
+HGLRC			hRC=NULL;			// rendering context
+HWND			hWnd=NULL;		// window handle
+HINSTANCE	hInstance;		// instance application
+
+int  keys[256];					// keyboard array
+int	 active=true;				// window active flag
+bool fullscreen=DEBUG?false:true;	// fullscreen flag
+bool pause=false;				// pause flag
+float fov_base=70;			// base fov angle
+float fov=fov_base;			// field of view angle
+float nearplane=0.5f;		// nearplane
+float farplane=1000.0f;	// farplane
+bool polygon=true;			// polygon mode
+/* window variable			*/
+int window_w=800;				// width
+int window_h=500;				// height
+int screen_w;						// width
+int screen_h;						// height
+int screen_average;			// average
+int window_color=32;		// color depth
+int window_depth=16;		// depth buffer
+/* object variable			*/
+float	p_x=0;						// position x
+float	p_y=0;						// position y
+float	p_z=0;						// position z
+float	a_x=0;						// angle x
+float	a_y=0;						// angle y
+float	a_z=0;						// angle z
+float	main_angle;				// main angle
+/* color variable				*/
+float color_inc=0.025f;	// color incrementation
+float base_r=0.1f;			// base r
+float base_g=0.125f;		// base g
+float base_b=0.1f;			// base b
+float bgd_base_r=base_r;// red base value
+float bgd_base_g=base_g;// green base value
+float bgd_base_b=base_b;// blue base value
+float bgd_r=0;					// red value
+float bgd_g=0;					// green value
+float bgd_b=0;					// blue value
+/* fog variable					*/
+float fog_color[]={base_r,base_g,base_b,1.0f};	// fog color definition
+float f_v1;							// level 1
+float f_v2;							// level 2
+float f_n;							// level (new)
+float f_t1;							// synchro time 1
+float f_t2;							// synchro time 2
+/* liner variable				*/
+bool liner_flag=false;	// liner flag
+int car;								// ascii code
+int liner_length;				// text length
+int l_n;								// line number
+int liner_max;					// line max length
+int liner_line;					// line increment
+int liner_i;						// char increment
+int liner_count=0;			// liner counter
+int liner_count_start=0;// liner counter start
+int liner_count_wait=0;	// wait between two update
+float liner_angle;			// angle
+float l_w;							// width
+float l_h;							// height
+float liner_size=0.1f;	// size
+float liner_z=-8.0f;    // position z
+float liner_radius=0;		// radius x
+float liner_jump=0.03f;	// jump radius
+float liner_r=1.0f;			// color r
+float liner_g=1.0f;			// color g
+float liner_b=1.0f;			// color b
+float liner_color;			// color increment
+/* text variable				*/
+char *txt;
+char *name="Razor 1911 - StarCraft ][";
+char *txt_info1="\r\r\r   ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿\rÄÄÄ´ ð=- RAZOR 1911 PRESENTS -=ð ÃÄÄÄ\r   ÀÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÂÙ\r    ³                           ³\r    ³        StarCraft][        ³\r    ³   ð Wings of Liberty ð    ³\r    ³                           ³\r    ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ\r                                 ";
+char *txt_info2="\r\r\rÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿\r³        < Informations >        ³\rÃÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´\r³ Supplied By     \007 *** *****    ³\r³ Cracked By      \007 ******       ³\r³ Release Date    \007 31 July 2010 ³\r³ Protection Type \007 Battle.net   ³\rÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ\r                                  ";
+char *txt_info3="\r\r\r   ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿\r   ³        < Greetings >        ³\r   ÀÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÂÄÙ\r     ³    -=ð BLIZZARD\003 ð=-    ³\r     ³ \007 Please, try again \002 \007 ³\r   ÚÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÁÄ¿\rÄÄÄ´ ððð NO INTERNET NEEDED! ððð ÃÄÄÄ\r   ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ\r                                  ";
+char *txt_info4="\r\r\r ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿\r ³ IF YOU LIKED THIS PRODUCT ³\r ÀÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÂÙ\rÄÄ´  -=ð PLEASE BUY IT ð=-  ÃÄÄ\r ÚÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÁ¿\r ³ THE PUBLISHERS OF QUALITY ³\r ³ SOFTWARE DESERVE SUPPORT! ³\r ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ\r                              ";
+char *txt_info5="\r\r\rÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿\r³ You reach the end of this ³\r³ little intro. Thank a lot ³\r³ for reading everything! \002 ³\rÃÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´\r³ As a gift, you can hit F2 ³\r³ key for an hidden message ³\rÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ\r                             ";
+char *txt_logo="\r\r\r/\\______  /\\______  ____/\\______     __\r\\____   \\/  \\__   \\/  _ \\____   \\ __/  \\____\r / _/  _/    \\/   /   /  / _/  _// / / / / /\r/  \\   \\  /\\ /   /\\  /  /  \\   \\/ /\\  / / /\r\\__/\\   \\/RTX______\\___/\\__/\\   \\/ / /_/_/\rððððð\\___)ððð\\__)ðððððððððððð\\___)ð\\/ðððððð\rRAZOR 1911 \007 SHARPENING THE BLADE 1985,2010 \r                                            ";
+char *txt_credits[]={"PIRATES OF THE 777 SEAS ","","","","CODE","REZ","","LOGO","KENET","","MUSIC","WOTW","DUBMOOD"};
+char *txt_intro="";
+char *txt_intro1="\003 WE ARE PROUD TO PRESENT \003";
+char *txt_intro2="\002 A BRAND NEW RELEASE BY \002";
+char *txt_hidden[]={"  \003 RAZOR 1911 \003    \003 RAZOR 1911 \003    \003 RAZOR 1911 \003 ","  \002 \007WE RULEZ\007 \002    \002 \007WE RULEZ\007 \002    \002 \007WE RULEZ\007 \002 ","  SKID ROW SUCKS    SKID ROW SUCKS    SKID ROW SUCKS "};
+char *txt_crack="\003 Happy birthday Razor 1911 \003 Sharpening the blade since 1985! \016 We also want to wish an happy birthday to the Commodore Amiga who turned 25 years old, just like us! -=*=- We already cracked the following protection: 3PLock, ActiveMARK, Alcatraz, Alpha-DVD, Alpha-ROM, CD Lock, CD-Cops, CD-Lock, CD-Protect, CodeLok, CopyLok, CrypKey, DBB, DiscGuard, DVD-Cops, FADE, HexaLock, JoWood X-Prot, LaserLock, LockBlocks, PhenoProtect, ProRing, ProtecDISC, ProtectCD, Ring PROTECH, Roxxe, SafeCast, SafeDisc, SecuROM, SmartE, SmarteCD, SoftLock, Solidshield, StarForce, SVK Protector, TAGES, UbiSoft DRM, VOB Protect \002 SVKP, Themidea, VMProtect, Armadillo, EXECryptor, ACProtect, ASPack, FSG, MEW, MoleBox, Morphine, Obsidium, PeCompact, PeLock, SafeCast, SDProtector, tElock, WinLicense, Yodas Crypter, Yodas Protector and still counting! \002";
+/* gear variable				*/
+bool gear_flag=false;		// flag
+float gear_x=0;					// position x
+float gear_y=0;					// position y
+float gear_h=0.5f;			// height
+float gear_r=0.45f;			// color r
+float gear_g=0.4f;			// color g
+float gear_b=0.35f;			// color b
+float gear_radius=0;		// radius x
+float triforce_r=0.75f;	// color r
+float triforce_g=0.625f;// color g
+float triforce_b=0.5f;	// color b
+float triforce_i=0.25f;	// color increment
+float screw_r=0.45f;		// color r
+float screw_g=0.425f;		// color g
+float screw_b=0.375f;		// color b
+float screw_i=0.125f;		// color increment
+float gear1=5.0f;
+float gear2=3.0f;
+float gear3=10.0f;
+float gear4=2.0f;
+float gear5=3.0f;
+float gear6=4.0f;
+float gear7=12.0f;
+/* hidden */
+bool hidden_flag=false;	// flag
+int hidden_type=1;			// hidden text type
+int hidden_length=0;		// text length
+float hidden_w=1.2f;		// width
+float hidden_h=1.5f;		// height
+float hidden_m=0.04f;
+float hidden_inc=0.01f;	// color incrementation
+float hidden_base_r;		// base r
+float hidden_base_g;		// base g
+float hidden_base_b;		// base b
+float hidden_r;					// color r
+float hidden_g;					// color g
+float hidden_b;					// color b
+float hidden_x;					// position x
+float hidden_y;					// position y
+float hidden_z=0.075f;	// position z
+int hidden_n=6;					// repeat
+/* credits variable			*/
+bool credits_flag=false;// flag
+bool credits_change=false;// flag
+float credits_x=0;			// position x
+float credits_y;				// position y
+float credits_w;				// width
+float credits_angle;		// angle
+float credits_color;		// color
+int credits_length;			// text length
+int credits_n=1;				// number
+/* crack variable				*/
+bool crack_flag=true;		// flag
+int crack_length=(int)strlen(txt_crack);
+float crack_w;					// width
+float crack_h;					// height
+float crack_x;					// char x
+float crack_px;					// position x
+int crack_n;						// char n by line
+int crack_counter=-1000;// pointer
+/* intro variable				*/
+bool intro_flag=false;	// flag
+float intro_size=0.1f;	// char size
+float intro_x=2.45f;		// position x
+float intro_y=-1.5f;		// position y
+float intro_z=-2.7f;		// position z
+float intro_h=0;				// height
+float intro_r=1.0f;			// color r
+float intro_g=1.0f;			// color g
+float intro_b=1.0f;			// color b
+float intro_angle=0;		// angle
+int	intro_light=0;			// text light
+int	intro_length=0;			// text length
+/* razor variable				*/
+bool razor_flag1=false;	// flag
+bool razor_flag2=false;	// flag
+bool razor_close=false;	// flag
+int razor_w=600;				// width
+int razor_h=272;				// height
+int razor_nx=razor_w/30;
+int razor_ny=razor_h/34;
+float razor_color=1.0f;
+float razor_angle=0;
+float razor_angle_transition=0;
+float razor_angle_out=0;
+float razor_angle_close=0;
+float razor_size=0.075f;
+float razor_width=razor_size*0.2f;
+float razor_y=0;
+float razor_z=0;
+float razor_radius=-3.5f;
+float razor_zoom=0.1f;
+/* transition variable	*/
+int transition_n=16;
+int transition_i=0;
+int transition_w;
+/* cube variable				*/
+bool cube_flag=false;		// flag
+int cube_n=256;					// number
+float cube_size=0.125f;	// size
+float cube_position[256][3];
+float cube_rotation[256][4];
+float cube_color[256][3];
+/* logo variable				*/
+bool logo_flag=false;		// flag
+int logo_w=32;					// width
+int logo_h=32;					// height
+int logo_margin=6;			// margin
+/* gradient variable		*/
+bool gradient_flag=false;	// flag
+/* flash variable				*/
+bool flash_flag=false;	// flag
+float flash_angle=0;	// angle
+/* decrunch variable		*/
+bool decrunch_flag=DEBUG?false:true;// flag
+int decrunch_h=0;				// height
+int decrunch_y=0;				// top
+int decrunch_split=0;		// bar split random
+int decrunch_split_w;		// bar split w
+float decrunch_time=DEBUG?0:0.75f;
+/* debug variable				*/
+bool debug_flag=DEBUG?true:false;	// flag
+bool debug_test=true;		// test
+/* border variable			*/
+bool border_flag=false;	// flag
+int border_h;						// height
+/* scanline variable		*/
+bool scanline_flag=true;// flag
+/* synchro variable			*/
+bool synchro_flag=false;// flag
+float synchro_angle=0;	// angle
+float synchro_value=0;	// value
+/* fade variable				*/
+bool fade_flag=false;		// flag
+float fade_angle=0;			// angle
+float fade_value=0;			// value
+int i,j;
+float x,y,z;
+float r,g,b,c;
+float angle,radius,scale;
+
+LRESULT	CALLBACK WndProc(HWND,UINT,WPARAM,LPARAM);	// wndProc declaration
+
+static PIXELFORMATDESCRIPTOR pfd=
+	{
+	sizeof(PIXELFORMATDESCRIPTOR),
+	1,											// version number
+	PFD_DRAW_TO_WINDOW|			// format must support window
+	PFD_SUPPORT_OPENGL|			// format must support openGL
+	PFD_DOUBLEBUFFER,				// must support double buffering
+	PFD_TYPE_RGBA,					// request an RGBA format
+	window_color,						// select our color depth
+	0,0,0,0,0,0,						// color bits ignored
+	0,											// no alpha buffer
+	0,											// shift bit ignored
+	0,											// no accumulation buffer
+	0,0,0,0,								// accumulation bits ignored
+	window_depth,						// z-buffer (depth buffer)
+	0,											// no stencil buffer
+	0,											// no auxiliary buffer
+	PFD_MAIN_PLANE,					// main drawing layer
+	0,											// reserved
+	0,0,0										// layer masks ignored
+	};
+
+#ifdef SNG
+
+	typedef struct 
+		{
+		int length,pos;
+		void *data;
+		} MEMFILE;
+
+	MEMFILE *memfile;
+	HRSRC	rec;	
+
+	unsigned int memopen(char *name)
+		{
+		HGLOBAL	handle;
+		memfile=(MEMFILE *)GlobalAlloc(GMEM_FIXED|GMEM_ZEROINIT,sizeof(MEMFILE));
+		rec=FindResource(NULL,name,RT_RCDATA);
+		handle=LoadResource(NULL,rec);
+		memfile->data=LockResource(handle);
+		memfile->length=SizeofResource(NULL,rec);
+		memfile->pos=0;
+		return (unsigned int)memfile;
+		}
+
+	void memclose(unsigned int handle)
+		{
+		MEMFILE *memfile=(MEMFILE *)handle;
+		GlobalFree(memfile);
+		}
+
+	int memread(void *buffer,int size,unsigned int handle)
+		{
+		MEMFILE *memfile=(MEMFILE *)handle;
+		if(memfile->pos+size>=memfile->length) size=memfile->length-memfile->pos;
+		memcpy(buffer,(char *)memfile->data+memfile->pos,size);
+		memfile->pos+=size;	
+		return size;
+		}
+
+	void memseek(unsigned int handle,int pos,signed char mode)
+		{
+		MEMFILE *memfile=(MEMFILE *)handle;
+		if(mode==SEEK_SET) 
+			memfile->pos=pos;
+		else if(mode==SEEK_CUR) 
+			memfile->pos+=pos;
+		else if(mode==SEEK_END)
+			memfile->pos=memfile->length+pos;
+		if(memfile->pos>memfile->length)
+			memfile->pos=memfile->length;
+		}
+
+	int memtell(unsigned int handle)
+		{
+		MEMFILE *memfile=(MEMFILE *)handle;
+		return memfile->pos;
+		}
+
+	void load_song()
+		{
+		FSOUND_File_SetCallbacks(memopen,memclose,memread,memseek,memtell);
+		mod=FMUSIC_LoadSong(MAKEINTRESOURCE(IDR_DATA3),NULL);
+		}
+
+#endif
+
+int load_tex(WORD file,GLint filter,GLint clamp)
+	{
+	HBITMAP hBMP;	// bitmap handle
+	BITMAP BMP;		// bitmap structure
+	hBMP=(HBITMAP)LoadImage(GetModuleHandle(NULL),MAKEINTRESOURCE(file),IMAGE_BITMAP,0,0,LR_CREATEDIBSECTION);
+	if(hBMP)
+		{	
+		GetObject(hBMP,sizeof(BMP),&BMP);
+		glPixelStorei(GL_UNPACK_ALIGNMENT,4);
+		glBindTexture(GL_TEXTURE_2D,file);
+		glTexImage2D(GL_TEXTURE_2D,0,3,BMP.bmWidth,BMP.bmHeight,0,GL_BGR_EXT,GL_UNSIGNED_BYTE,BMP.bmBits);
+		gluBuild2DMipmaps(GL_TEXTURE_2D,3,BMP.bmWidth,BMP.bmHeight,GL_BGR_EXT,GL_UNSIGNED_BYTE,BMP.bmBits);
+		glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR_MIPMAP_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR_MIPMAP_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,clamp);
+		glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,clamp);
+		DeleteObject(hBMP);
+		}
+	return 0;
+	}
+
+void init3d(GLsizei width,GLsizei height)
+	{
+	glViewport(0,0,width,height);	// reset viewport
+	glMatrixMode(GL_PROJECTION);	// select projection matrix
+	glLoadIdentity();							// reset projection matrix
+	gluPerspective(fov,(float)((float)width/(float)height),nearplane,farplane); // aspect ratio
+	glMatrixMode(GL_MODELVIEW);		// select modelview matrix
+	glLoadIdentity();							// reset modelview matrix
+	}
+
+void init2d(GLsizei width,GLsizei height)
+	{
+	glViewport(0,0,width,height);	// reset viewport
+	glMatrixMode(GL_PROJECTION);	// select projection matrix
+	glLoadIdentity();							// reset projection matrix
+	gluOrtho2D(0,width,height,0);	// init orthographic mode
+	glMatrixMode(GL_MODELVIEW);		// select modelview matrix
+	glLoadIdentity();							// reset modelview matrix
+	}
+
+void calc_txt()
+	{
+	liner_length=strlen(txt);
+	liner_count=0;
+	liner_angle=main_angle;
+	l_n=0;
+	liner_max=0;
+	liner_i=0;
+	for(i=0;i<liner_length;i++)
+		{
+		if((byte)txt[i]!=13)
+			{
+			liner_i++;
+			}
+		else
+			{
+			if(liner_i>liner_max) liner_max=liner_i;
+			l_n++;
+			liner_i=0;
+			}
+		}
+	if(liner_i>liner_max) liner_max=liner_i;
+	fade_value=1.0f;
+	}
+
+void draw_char(byte car,float w,float h,float m)
+	{
+	if(car!=32)
+		{
+		l_w=(car%16)/16.0f;
+		l_h=(car-car%16)/256.0f;
+		glBegin(GL_QUADS);
+			glTexCoord2f(l_w+0.0620f,-l_h-0.0620f); glVertex2f( w*0.5f-m, h*0.5f);
+			glTexCoord2f(l_w+0.0620f,-l_h-0.0005f); glVertex2f( w*0.5f+m,-h*0.5f);
+			glTexCoord2f(l_w+0.0005f,-l_h-0.0005f); glVertex2f(-w*0.5f-m,-h*0.5f);
+			glTexCoord2f(l_w+0.0005f,-l_h-0.0620f); glVertex2f(-w*0.5f+m, h*0.5f);
+		glEnd();
+		}
+	}
+
+void flash()
+	{
+	flash_flag=true;
+	flash_angle=main_angle;
+	}
+
+void synchro()
+	{
+	synchro_flag=true;
+	synchro_angle=main_angle;
+	intro_light=0;
+	}
+
+void fade()
+	{
+	fade_flag=true;
+	fade_angle=main_angle;
+	}
+
+void cube(float size,float r,float g,float b,float inc,bool mode)
+	{
+	glBegin(GL_QUADS);
+		if(mode)
+			{
+			glColor3f(r+inc,g+inc,b+inc);
+			glVertex3f( size, size, size); // front
+			glVertex3f(-size, size, size);
+			glVertex3f(-size,-size, size);
+			glVertex3f( size,-size, size);
+			glVertex3f( size, size,-size); // back
+			glVertex3f( size,-size,-size);
+			glVertex3f(-size,-size,-size);
+			glVertex3f(-size, size,-size);
+			glColor3f(r,g,b);
+			glVertex3f(-size, size, size); // left
+			glVertex3f(-size, size,-size);
+			glVertex3f(-size,-size,-size);
+			glVertex3f(-size,-size, size);
+			glVertex3f( size, size, size); // right
+			glVertex3f( size,-size, size);
+			glVertex3f( size,-size,-size);
+			glVertex3f( size, size,-size);
+			glColor3f(r-inc,g-inc,b-inc);
+			glVertex3f( size,-size, size); // top
+			glVertex3f(-size,-size, size);
+			glVertex3f(-size,-size,-size);
+			glVertex3f( size,-size,-size);
+			glVertex3f( size, size, size); // bottom
+			glVertex3f( size, size,-size);
+			glVertex3f(-size, size,-size);
+			glVertex3f(-size, size, size);
+			}
+		else
+			{
+			glColor3f(r-inc,g-inc,b-inc);
+			glVertex3f( size, size,-size); // front
+			glVertex3f(-size, size,-size);
+			glVertex3f(-size,-size,-size);
+			glVertex3f( size,-size,-size);
+			glVertex3f( size, size, size); // back
+			glVertex3f( size,-size, size);
+			glVertex3f(-size,-size, size);
+			glVertex3f(-size, size, size);
+			glColor3f(r,g,b);
+			glVertex3f( size, size, size); // left
+			glVertex3f( size, size,-size);
+			glVertex3f( size,-size,-size);
+			glVertex3f( size,-size, size);
+			glVertex3f(-size, size, size); // right
+			glVertex3f(-size,-size, size);
+			glVertex3f(-size,-size,-size);
+			glVertex3f(-size, size,-size);
+			glColor3f(r+inc,g+inc,b+inc);
+			glVertex3f( size, size, size); // top
+			glVertex3f(-size, size, size);
+			glVertex3f(-size, size,-size);
+			glVertex3f( size, size,-size);
+			glVertex3f( size,-size, size); // bottom
+			glVertex3f( size,-size,-size);
+			glVertex3f(-size,-size,-size);
+			glVertex3f(-size,-size, size);
+			}
+	glEnd();
+	}
+
+void screw(float radius1,float radius2,float h1,float h2,float r,float g,float b,float inc)
+	{
+	float x1,x2,y1,y2;
+	int n1=6;
+	int n2=8;
+	for(i=0;i<n1;i++)
+		{
+		x1=radius1*cosf(360.0f/n1*i*PID);
+		y1=radius1*sinf(360.0f/n1*i*PID);
+		x2=radius1*cosf(360.0f/n1*(i+1)*PID);
+		y2=radius1*sinf(360.0f/n1*(i+1)*PID);
+		glColor3f(r,g,b);
+		glBegin(GL_TRIANGLES);
+			glVertex3f( 0, 0, h1);
+			glVertex3f(x1,y1, h1);
+			glVertex3f(x2,y2, h1);
+		glEnd();
+		glColor3f(r-inc,g-inc,b-inc);
+		glBegin(GL_QUADS);
+			glVertex3f(x1,y1,-h1);
+			glVertex3f(x2,y2,-h1);
+			glVertex3f(x2,y2, h1);
+			glVertex3f(x1,y1, h1);
+		glEnd();
+		}
+	for(i=0;i<n2;i++)
+		{
+		x1=radius2*cosf(360.0f/n2*i*PID);
+		y1=radius2*sinf(360.0f/n2*i*PID);
+		x2=radius2*cosf(360.0f/n2*(i+1)*PID);
+		y2=radius2*sinf(360.0f/n2*(i+1)*PID);
+		glColor3f(r+inc,g+inc,b+inc);
+		glBegin(GL_TRIANGLES);
+			glVertex3f( 0, 0,h1+h2);
+			glVertex3f(x1,y1,h1+h2);
+			glVertex3f(x2,y2,h1+h2);
+		glEnd();
+		glColor3f(r-inc,g-inc,b-inc);
+		glBegin(GL_QUADS);
+			glVertex3f(x1,y1,h1   );
+			glVertex3f(x2,y2,h1   );
+			glVertex3f(x2,y2,h1+h2);
+			glVertex3f(x1,y1,h1+h2);
+		glEnd();
+		}
+	}
+
+void gear(float tooth_n,float radius1,float radius5,float radius3,float radius6,float border,float height1,float height3,float height2,float r,float g,float b,float inc)
+	{
+	float radius2=radius1-border;
+	float radius4=radius3-border;
+	float a1=360.0f/(tooth_n*2.0f)*PID;
+	float a2=a1*0.325f;
+	float a3=a1*0.2f;
+	float cos1,cos2,cos3,cos4,cos5,cos6,sin1,sin2,sin3,sin4,sin5,sin6;
+	float x1,x2,x3,x4,x5,x6,x7,x8;
+	float y1,y2,y3,y4,y5,y6,y7,y8;
+	glBegin(GL_QUADS);
+	for(i=0;i<tooth_n*2;i++)
+		{
+		cos1=cosf(i*a1);
+		sin1=sinf(i*a1);
+		cos2=cosf(i*a1+a1);
+		sin2=sinf(i*a1+a1);
+		cos3=cosf(i*a1+a3);
+		sin3=sinf(i*a1+a3);
+		cos4=cosf(i*a1+a1-a3);
+		sin4=sinf(i*a1+a1-a3);
+		cos5=cosf(i*a1+a2);
+		sin5=sinf(i*a1+a2);
+		cos6=cosf(i*a1+a1-a2);
+		sin6=sinf(i*a1+a1-a2);
+		x1=radius1*cos1;
+		y1=radius1*sin1;
+		x2=radius1*cos2;
+		y2=radius1*sin2;
+		x3=radius2*cos1;
+		y3=radius2*sin1;
+		x4=radius2*cos2;
+		y4=radius2*sin2;
+		x5=radius3*cos1;
+		y5=radius3*sin1;
+		x6=radius3*cos2;
+		y6=radius3*sin2;
+		x7=radius4*cos1;
+		y7=radius4*sin1;
+		x8=radius4*cos2;
+		y8=radius4*sin2;
+		glColor3f(r,g,b);
+		glVertex3f(x4,y4, height1); // border 1 top
+		glVertex3f(x3,y3, height1);
+		glVertex3f(x1,y1, height1);
+		glVertex3f(x2,y2, height1);
+		glColor3f(r-inc,g-inc,b-inc);
+		glVertex3f(x3,y3, height1); // border 1 back
+		glVertex3f(x4,y4, height1);
+		glVertex3f(x4,y4, height2);
+		glVertex3f(x3,y3, height2);
+		glColor3f(r+inc,g+inc,b+inc);
+		glVertex3f(x6,y6, height2); // border top
+		glVertex3f(x5,y5, height2);
+		glVertex3f(x3,y3, height2);
+		glVertex3f(x4,y4, height2);
+		glColor3f(r-inc,g-inc,b-inc);
+		glVertex3f(x6,y6, height1); // border 2 front
+		glVertex3f(x5,y5, height1);
+		glVertex3f(x5,y5, height2);
+		glVertex3f(x6,y6, height2);
+		glColor3f(r,g,b);
+		glVertex3f(x8,y8, height1); // border 2 top
+		glVertex3f(x7,y7, height1);
+		glVertex3f(x5,y5, height1);
+		glVertex3f(x6,y6, height1);
+		if(radius6!=0&&i%2==0)
+			{
+			x3=(radius6+0.1f)*cos3;
+			y3=(radius6+0.1f)*sin3;
+			x4=(radius6+0.1f)*cos4;
+			y4=(radius6+0.1f)*sin4;
+			x5=radius6*cos5;
+			y5=radius6*sin5;
+			x6=radius6*cos6;
+			y6=radius6*sin6;
+			glColor3f(r-inc,g-inc,b-inc);
+			glVertex3f(x5,y5, height3); // tooth front
+			glVertex3f(x6,y6, height3);
+			glVertex3f(x6,y6,-height3);
+			glVertex3f(x5,y5,-height3);
+			glColor3f(r+inc,g+inc,b+inc);
+			glVertex3f(x4,y4,-height3); // tooth left
+			glVertex3f(x4,y4, height3);
+			glVertex3f(x8,y8, height1);
+			glVertex3f(x8,y8,-height1);
+			glVertex3f(x7,y7,-height1); // tooth right
+			glVertex3f(x7,y7, height1);
+			glVertex3f(x3,y3, height3);
+			glVertex3f(x3,y3,-height3);
+			glColor3f(r,g,b);
+			glVertex3f(x6,y6,-height3); // tooth left
+			glVertex3f(x6,y6, height3);
+			glVertex3f(x4,y4, height3);
+			glVertex3f(x4,y4,-height3);
+			glVertex3f(x3,y3,-height3); // tooth right
+			glVertex3f(x3,y3, height3);
+			glVertex3f(x5,y5, height3);
+			glVertex3f(x5,y5,-height3);
+			glColor3f(r,g,b);
+			glVertex3f(x4,y4, height3); // tooth top
+			glVertex3f(x3,y3, height3);
+			glVertex3f(x7,y7, height1);
+			glVertex3f(x8,y8, height1);
+			glVertex3f(x6,y6, height3);
+			glVertex3f(x5,y5, height3);
+			glVertex3f(x3,y3, height3);
+			glVertex3f(x4,y4, height3);
+			}
+		else
+			{
+			glColor3f(r-inc,g-inc,b-inc);
+			glVertex3f(x7,y7, height1); // border 2 back
+			glVertex3f(x8,y8, height1);
+			glVertex3f(x8,y8,-height1);
+			glVertex3f(x7,y7,-height1);
+			}
+		if(i%2==0)
+			{
+			x3=(radius5-0.1f)*cos3;
+			y3=(radius5-0.1f)*sin3;
+			x4=(radius5-0.1f)*cos4;
+			y4=(radius5-0.1f)*sin4;
+			x5=radius5*cos5;
+			y5=radius5*sin5;
+			x6=radius5*cos6;
+			y6=radius5*sin6;
+			glColor3f(r-inc,g-inc,b-inc);
+			glVertex3f(x6,y6, height3); // tooth front
+			glVertex3f(x5,y5, height3);
+			glVertex3f(x5,y5,-height3);
+			glVertex3f(x6,y6,-height3);
+			glColor3f(r+inc,g+inc,b+inc);
+			glVertex3f(x2,y2,-height1); // tooth left
+			glVertex3f(x2,y2, height1);
+			glVertex3f(x4,y4, height3);
+			glVertex3f(x4,y4,-height3);
+			glVertex3f(x3,y3,-height3); // tooth right
+			glVertex3f(x3,y3, height3);
+			glVertex3f(x1,y1, height1);
+			glVertex3f(x1,y1,-height1);
+			glColor3f(r,g,b);
+			glVertex3f(x4,y4,-height3); // tooth left
+			glVertex3f(x4,y4, height3);
+			glVertex3f(x6,y6, height3);
+			glVertex3f(x6,y6,-height3);
+			glVertex3f(x5,y5,-height3); // tooth right
+			glVertex3f(x5,y5, height3);
+			glVertex3f(x3,y3, height3);
+			glVertex3f(x3,y3,-height3);
+			glColor3f(r,g,b);
+			glVertex3f(x2,y2, height1); // tooth top
+			glVertex3f(x1,y1, height1);
+			glVertex3f(x3,y3, height3);
+			glVertex3f(x4,y4, height3);
+			glVertex3f(x4,y4, height3);
+			glVertex3f(x3,y3, height3);
+			glVertex3f(x5,y5, height3);
+			glVertex3f(x6,y6, height3);
+			}
+		else
+			{
+			glColor3f(r-inc,g-inc,b-inc);
+			glVertex3f(x2,y2, height1); // front
+			glVertex3f(x1,y1, height1);
+			glVertex3f(x1,y1,-height1);
+			glVertex3f(x2,y2,-height1);
+			}
+		}
+	glEnd();
+	}
+
+void gear2d(float tooth_n,float radius1,float radius2,float radius3,float r,float g,float b)
+	{
+	float a1=360.0f/(tooth_n*2.0f)*PID;
+	float a2=a1*0.325f;
+	float a3=a1*0.25f;
+	float cos1,cos2,cos3,cos4,sin1,sin2,sin3,sin4;
+	float x1,x2,x3,x4,x5,x6;
+	float y1,y2,y3,y4,y5,y6;
+	glBegin(GL_QUADS);
+		for(i=0;i<tooth_n*2;i++)
+			{
+			cos1=cosf(i*a1);
+			sin1=sinf(i*a1);
+			cos2=cosf(i*a1+a1);
+			sin2=sinf(i*a1+a1);
+			cos3=cosf(i*a1+a3);
+			sin3=sinf(i*a1+a3);
+			cos4=cosf(i*a1+a1-a3);
+			sin4=sinf(i*a1+a1-a3);
+			x1=radius1*cos1;
+			y1=radius1*sin1;
+			x2=radius1*cos2;
+			y2=radius1*sin2;
+			x3=radius2*cos3;
+			y3=radius2*sin3;
+			x4=radius2*cos4;
+			y4=radius2*sin4;
+			x5=radius3*cos1;
+			y5=radius3*sin1;
+			x6=radius3*cos2;
+			y6=radius3*sin2;
+			glColor3f(r,g,b);
+			glVertex3f(x2,y2,0);
+			glVertex3f(x1,y1,0);
+			glVertex3f(x5,y5,0);
+			glVertex3f(x6,y6,0);
+			if(i%2==0)
+				{
+				glVertex3f(x1,y1,0);
+				glVertex3f(x2,y2,0);
+				glVertex3f(x4,y4,0);
+				glVertex3f(x3,y3,0);
+				}
+			}
+	glEnd();
+	}
+
+void triforce(bool mode,float radius2,float z,float r,float g,float b,float inc)
+	{
+	float radius1=radius2*0.5f;
+	float x1=radius1*cosf(PID* 30.0f);
+	float y1=radius1*sinf(PID* 30.0f);
+	float x2=radius1*cosf(PID*150.0f);
+	float y2=radius1*sinf(PID*150.0f);
+	float x3=radius1*cosf(PID*270.0f);
+	float y3=radius1*sinf(PID*270.0f);
+	float x4=radius2*cosf(PID* 90.0f);
+	float y4=radius2*sinf(PID* 90.0f);
+	float x5=radius2*cosf(PID*210.0f);
+	float y5=radius2*sinf(PID*210.0f);
+	float x6=radius2*cosf(PID*330.0f);
+	float y6=radius2*sinf(PID*330.0f);
+	glColor3f(r,g,b);
+	glBegin(GL_TRIANGLES);
+		if(mode)
+			{
+			glVertex3f(x1,y1,z);
+			glVertex3f(x4,y4,z);
+			glVertex3f(x2,y2,z);
+			glVertex3f(x2,y2,z);
+			glVertex3f(x5,y5,z);
+			glVertex3f(x3,y3,z);
+			glVertex3f(x3,y3,z);
+			glVertex3f(x6,y6,z);
+			glVertex3f(x1,y1,z);
+			glVertex3f(x1,y1,0);
+			glVertex3f(x4,y4,0);
+			glVertex3f(x2,y2,0);
+			glVertex3f(x2,y2,0);
+			glVertex3f(x5,y5,0);
+			glVertex3f(x3,y3,0);
+			glVertex3f(x3,y3,0);
+			glVertex3f(x6,y6,0);
+			glVertex3f(x1,y1,0);
+			}
+		else
+			{
+			glVertex3f(x2,y2,z);
+			glVertex3f(x4,y4,z);
+			glVertex3f(x1,y1,z);
+			glVertex3f(x3,y3,z);
+			glVertex3f(x5,y5,z);
+			glVertex3f(x2,y2,z);
+			glVertex3f(x1,y1,z);
+			glVertex3f(x6,y6,z);
+			glVertex3f(x3,y3,z);
+			glVertex3f(x2,y2,0);
+			glVertex3f(x4,y4,0);
+			glVertex3f(x1,y1,0);
+			glVertex3f(x3,y3,0);
+			glVertex3f(x5,y5,0);
+			glVertex3f(x2,y2,0);
+			glVertex3f(x1,y1,0);
+			glVertex3f(x6,y6,0);
+			glVertex3f(x3,y3,0);
+			}
+	glEnd();
+	glColor3f(r-inc,g-inc,b-inc);
+	glBegin(GL_QUADS);
+		if(mode)
+			{
+			glVertex3f(x1,y1,z);
+			glVertex3f(x2,y2,z);
+			glVertex3f(x2,y2,0);
+			glVertex3f(x1,y1,0);
+			glVertex3f(x2,y2,z);
+			glVertex3f(x4,y4,z);
+			glVertex3f(x4,y4,0);
+			glVertex3f(x2,y2,0);
+			glVertex3f(x4,y4,z);
+			glVertex3f(x1,y1,z);
+			glVertex3f(x1,y1,0);
+			glVertex3f(x4,y4,0);
+			glVertex3f(x2,y2,z);
+			glVertex3f(x3,y3,z);
+			glVertex3f(x3,y3,0);
+			glVertex3f(x2,y2,0);
+			glVertex3f(x3,y3,z);
+			glVertex3f(x5,y5,z);
+			glVertex3f(x5,y5,0);
+			glVertex3f(x3,y3,0);
+			glVertex3f(x5,y5,z);
+			glVertex3f(x2,y2,z);
+			glVertex3f(x2,y2,0);
+			glVertex3f(x5,y5,0);
+			glVertex3f(x3,y3,z);
+			glVertex3f(x1,y1,z);
+			glVertex3f(x1,y1,0);
+			glVertex3f(x3,y3,0);
+			glVertex3f(x1,y1,z);
+			glVertex3f(x6,y6,z);
+			glVertex3f(x6,y6,0);
+			glVertex3f(x1,y1,0);
+			glVertex3f(x6,y6,z);
+			glVertex3f(x3,y3,z);
+			glVertex3f(x3,y3,0);
+			glVertex3f(x6,y6,0);
+			}
+		else
+			{
+			glVertex3f(x1,y1,0);
+			glVertex3f(x2,y2,0);
+			glVertex3f(x2,y2,z);
+			glVertex3f(x1,y1,z);
+			glVertex3f(x2,y2,0);
+			glVertex3f(x4,y4,0);
+			glVertex3f(x4,y4,z);
+			glVertex3f(x2,y2,z);
+			glVertex3f(x4,y4,0);
+			glVertex3f(x1,y1,0);
+			glVertex3f(x1,y1,z);
+			glVertex3f(x4,y4,z);
+			glVertex3f(x2,y2,0);
+			glVertex3f(x3,y3,0);
+			glVertex3f(x3,y3,z);
+			glVertex3f(x2,y2,z);
+			glVertex3f(x3,y3,0);
+			glVertex3f(x5,y5,0);
+			glVertex3f(x5,y5,z);
+			glVertex3f(x3,y3,z);
+			glVertex3f(x5,y5,0);
+			glVertex3f(x2,y2,0);
+			glVertex3f(x2,y2,z);
+			glVertex3f(x5,y5,z);
+			glVertex3f(x3,y3,0);
+			glVertex3f(x1,y1,0);
+			glVertex3f(x1,y1,z);
+			glVertex3f(x3,y3,z);
+			glVertex3f(x1,y1,0);
+			glVertex3f(x6,y6,0);
+			glVertex3f(x6,y6,z);
+			glVertex3f(x1,y1,z);
+			glVertex3f(x6,y6,0);
+			glVertex3f(x3,y3,0);
+			glVertex3f(x3,y3,z);
+			glVertex3f(x6,y6,z);
+			}
+	glEnd();
+	}
+
+void hidden_color()
+	{
+	hidden_type=hidden_flag?2:((hidden_type==0)?1:0);
+	hidden_length=(int)strlen(txt_hidden[hidden_type]);
+	hidden_r=1.0f;
+	hidden_g=1.0f;
+	hidden_b=1.0f;
+	switch(hidden_type)
+		{
+		case 0:
+			hidden_base_r=0.625f;
+			hidden_base_g=0.25f;
+			hidden_base_b=0.25f;
+			break;
+		case 1:
+			hidden_base_r=0.25f;
+			hidden_base_g=0.5f;
+			hidden_base_b=0.75f;
+			break;
+		case 2:
+			hidden_base_r=0.75f;
+			hidden_base_g=0.5f;
+			hidden_base_b=0;
+			break;
+		}
+	}
+
+int InitGL(void)
+	{
+	glClearDepth(1.0f);						// set depth buffer
+	glDepthMask(GL_TRUE);					// do not write z-buffer
+	glEnable(GL_CULL_FACE);				// disable cull face
+	glCullFace(GL_BACK);					// don't draw front face
+	glDisable(GL_BLEND);					// enable blending mode
+	// fog
+	glFogi(GL_FOG_MODE,GL_LINEAR);		// fog mode
+	glFogfv(GL_FOG_COLOR,fog_color);	// fog color
+	glFogf(GL_FOG_DENSITY,1.0f);			// fog density
+	glHint(GL_FOG_HINT,GL_NICEST);		// fog hint value
+	glFogf(GL_FOG_START,2.0f);				// fog start depth
+	glFogf(GL_FOG_END,32.0f);					// fog end depth
+	// load texture
+	load_tex(IDB_FONT,GL_LINEAR,GL_REPEAT);
+	load_tex(IDB_RAZOR,GL_LINEAR,GL_CLAMP);
+	load_tex(IDB_LOGO,GL_LINEAR,GL_CLAMP);
+	load_tex(IDB_SCANLINE,GL_LINEAR,GL_REPEAT);
+	// generate list
+	glNewList(GEAR1_LIST,GL_COMPILE);
+		//glPushMatrix();
+    //glPushAttrib(GL_CURRENT_BIT);
+			gear(15,gear1,gear1+0.75f,gear1*0.5f,0,0.5f,0.75f,0.5f,0.5f,gear_r,gear_g,gear_b,0.1f);
+			glTranslatef(0,3.2f,0.625f);
+			triforce(true,1.0f,0.125f,triforce_r,triforce_g,triforce_b,triforce_i);
+			glTranslatef(0,-3.2f,-0.625f);
+			glRotatef(120,0,0,1.0f);
+			glTranslatef(0,3.2f,0.625f);
+			triforce(true,1.0f,0.125f,triforce_r,triforce_g,triforce_b,triforce_i);
+			glTranslatef(0,-3.2f,-0.625f);
+			glRotatef(120,0,0,1.0f);
+			glTranslatef(0,3.2f,0.625f);
+			triforce(true,1.0f,0.125f,triforce_r,triforce_g,triforce_b,triforce_i);
+			glTranslatef(0,-3.2f,-0.625f);
+			glRotatef(-180,0,0,1.0f);
+			glTranslatef(0,3.5f,0.625f);
+			screw(0.625f,0.25f,0.2f,0.125f,screw_r,screw_g,screw_b,screw_i);
+			glTranslatef(0,-3.5f,-0.625f);
+			glRotatef(120,0,0,1.0f);
+			glTranslatef(0,3.5f,0.625f);
+			screw(0.625f,0.25f,0.2f,0.125f,screw_r,screw_g,screw_b,screw_i);
+			glTranslatef(0,-3.5f,-0.625f);
+			glRotatef(120,0,0,1.0f);
+			glTranslatef(0,3.5f,0.625f);
+			screw(0.625f,0.25f,0.2f,0.125f,screw_r,screw_g,screw_b,screw_i);
+		//glPopAttrib();
+    //glPopMatrix();
+	glEndList();
+	glNewList(GEAR2_LIST,GL_COMPILE);
+		gear(10,gear2,gear2+0.75f,gear2*0.235f,0,0.25f,0.75f,0.5f,0.5f,gear_r,gear_g,gear_b,0.1f);
+		glTranslatef(0,0,0.5f);
+		triforce(true,gear2-0.25f,0.125f,triforce_r,triforce_g,triforce_b,triforce_i);
+		glTranslatef(0,0,-0.5f);
+		glRotatef(60,0,0,1.0f);
+		glTranslatef(0,2.05f,0.75f);
+		screw(0.4f,0.2f,0.1f,0.1f,screw_r,screw_g,screw_b,screw_i);
+		glTranslatef(0,-2.05f,-0.75f);
+		glRotatef(120,0,0,1.0f);
+		glTranslatef(0,2.05f,0.75f);
+		screw(0.4f,0.2f,0.1f,0.1f,screw_r,screw_g,screw_b,screw_i);
+		glTranslatef(0,-2.05f,-0.75f);
+		glRotatef(120,0,0,1.0f);
+		glTranslatef(0,2.05f,0.75f);
+		screw(0.4f,0.2f,0.1f,0.1f,screw_r,screw_g,screw_b,screw_i);
+	glEndList();
+	glNewList(GEAR3_LIST,GL_COMPILE);
+		gear(30,gear3,gear3+0.75f,gear3-2.0f,gear3-2.75f,0.25f,0.75f,0.5f,0.625f,gear_r,gear_g,gear_b,0.1f);
+		glTranslatef(0,8.65f,0.625f);
+		triforce(true,1.0f,0.125f,triforce_r,triforce_g,triforce_b,triforce_i);
+		glTranslatef(0,-8.65f,0);
+		glRotatef(120,0,0,1.0f);
+		glTranslatef(0,8.65f,0);
+		triforce(true,1.0f,0.125f,triforce_r,triforce_g,triforce_b,triforce_i);
+		glTranslatef(0,-8.65f,0);
+		glRotatef(120,0,0,1.0f);
+		glTranslatef(0,8.65f,0);
+		triforce(true,1.0f,0.125f,triforce_r,triforce_g,triforce_b,triforce_i);
+	glEndList();
+	glNewList(GEAR4_LIST,GL_COMPILE);
+		gear(7,gear4,gear4+0.75f,gear4-0.75f,0,0.25f,0.75f,0.5f,0.625f,gear_r,gear_g,gear_b,0.1f);
+	glEndList();
+	glNewList(GEAR5_LIST,GL_COMPILE);
+		gear(14,gear5,gear5+0.5f,gear5-1.0f,0,0.25f,0.75f,0.5f,0.5f,gear_r,gear_g,gear_b,0.1f);
+		glRotatef(6.5,0,0,1.0f);
+		glTranslatef(0,2.35f,0.625f);
+		for(int i=0;i<7;i++)
+			{
+			glTranslatef(0,-2.35f,0);
+			glRotatef(360.0f/7.0f,0,0,1.0f);
+			glTranslatef(0,2.35f,0);
+			screw(0.3f,0.125f,0.125f,0.1f,screw_r,screw_g,screw_b,screw_i);
+			}
+	glEndList();
+	glNewList(GEAR6_LIST,GL_COMPILE);
+		gear(12,gear6,gear6+0.75f,gear6-1.25f,0,0.25f,0.75f,0.5f,0.625f,gear_r,gear_g,gear_b,0.1f);
+		glRotatef(360.0f/48+360.0f/24,0,0,1.0f);
+		glTranslatef(0,gear6-0.8f,0.75f);
+		screw(0.35f,0.125f,0.1f,0.1f,screw_r,screw_g,screw_b,screw_i);
+		for(i=1;i<6;i++)
+			{
+			glTranslatef(0,-gear6+0.8f,0);
+			glRotatef(360.0f/6.0f,0,0,1.0f);
+			glTranslatef(0,gear6-0.8f,0);
+			screw(0.35f,0.125f,0.1f,0.1f,screw_r,screw_g,screw_b,screw_i);
+			}
+	glEndList();
+	glNewList(GEAR7_LIST,GL_COMPILE);
+		gear(60,gear7,gear7+0.25f,gear7-1.0f,gear7-1.5f,0.2f,1.5f,1.375f,1.25f,gear_r,gear_g,gear_b,0.1f);
+	glEndList();
+	glNewList(GEAR2D1_LIST,GL_COMPILE);
+		gear2d(10,screen_average*0.03f,screen_average*0.04f,screen_average*0.02f,0.1f,0.1f,0.1f);
+	glEndList();
+	glNewList(GEAR2D2_LIST,GL_COMPILE);
+		gear2d(13,screen_average*0.05f,screen_average*0.06f,screen_average*0.035f,0.1f,0.1f,0.1f);
+	glEndList();
+	glNewList(GEAR2D3_LIST,GL_COMPILE);
+		gear2d(8,screen_average*0.025f,screen_average*0.035f,screen_average*0.01625f,0.1f,0.1f,0.1f);
+	glEndList();
+	glNewList(GEAR2D4_LIST,GL_COMPILE);
+		gear2d(6,screen_average*0.019f,screen_average*0.0275f,screen_average*0.01f,0.1f,0.1f,0.1f);
+	glEndList();
+	glNewList(GRADIENT_LIST,GL_COMPILE);
+		glBlendFunc(GL_SRC_COLOR,GL_SRC_ALPHA);
+		glBegin(GL_QUADS);
+			glColor4f(0   ,   0,   0,1.0f); glVertex2i(screen_w,0);
+			glColor4f(0.1f,   0,0.3f,1.0f); glVertex2i(       0,0);
+			glColor4f(0.4f,0.5f,0.6f,1.0f); glVertex2i(       0,screen_h/2);
+			glColor4f(0.6f,0.5f,0.4f,1.0f); glVertex2i(screen_w,screen_h/2);
+			glColor4f(0.6f,0.5f,0.4f,1.0f); glVertex2i(screen_w,screen_h/2);
+			glColor4f(0.4f,0.5f,0.6f,1.0f); glVertex2i(       0,screen_h/2);
+			glColor4f(   0,   0,   0,1.0f); glVertex2i(       0,screen_h);
+			glColor4f(0.3f,   0,0.1f,1.0f); glVertex2i(screen_w,screen_h);
+		glEnd();
+	glEndList();
+	glNewList(BORDER_LIST,GL_COMPILE);
+		glLoadIdentity();
+		glBlendFunc(GL_SRC_COLOR,GL_SRC_ALPHA);
+		glBegin(GL_QUADS);
+			glColor4f(0,0,0,   0); glVertex2i(screen_w,0);
+			glColor4f(0,0,0,   0); glVertex2i(       0,0);
+			glColor4f(0,0,0,1.0f); glVertex2i(       0,border_h);
+			glColor4f(0,0,0,1.0f); glVertex2i(screen_w,border_h);
+			glColor4f(0,0,0,1.0f); glVertex2i(screen_w,screen_h-border_h);
+			glColor4f(0,0,0,1.0f); glVertex2i(       0,screen_h-border_h);
+			glColor4f(0,0,0,   0); glVertex2i(       0,screen_h);
+			glColor4f(0,0,0,   0); glVertex2i(screen_w,screen_h);
+		glEnd();
+	glEndList();
+	// initialize cube variable
+	cube_size=0.5f;
+	for(i=0;i<cube_n;i++)
+		{
+		radius=15.0f+(float)(rand()%50)*0.1f;
+		//angle=360.0f*PID/cube_n*i;
+		angle=(rand()%36000)*0.01f*PID;
+		cube_position[i][0]=radius/screen_average*screen_w*cosf(angle);
+		cube_position[i][1]=radius/screen_average*screen_h*sinf(angle);
+		cube_position[i][2]=-8.0f-(float)(rand()%160)*0.1f;
+		cube_rotation[i][0]=-1.0f+(rand()%200)*0.01f;
+		cube_rotation[i][1]=-1.0f+(rand()%200)*0.01f;
+		cube_rotation[i][2]=-1.0f+(rand()%200)*0.01f;
+		cube_rotation[i][3]=(float)(rand()%1800)*0.1f;
+		cube_color[i][0]=(40+rand()%20)*0.01f;
+		cube_color[i][1]=(40+rand()%20)*0.01f;
+		cube_color[i][2]=(40+rand()%20)*0.01f;
+		}
+	// initialize some variable
+	hidden_color();
+	timer=new Timer();
+	return true;
+	}
+
+int DrawGLScene(void) // draw scene
+	{
+	// synchro
+	if(!pause)
+		{
+		frame_total++;
+		frame_counter++;
+		timer->update();
+		timer_global_previous=timer_global;
+		timer_global=timer->elapsed;
+		timer_fps=1.0f/(timer_global-timer_global_previous);
+		timer_fps_total+=timer_fps;
+		timer_fps_average=timer_fps_total/frame_total;
+		if(timer_fps<timer_fps_min) timer_fps_min=timer_fps;
+		if(timer_fps>timer_fps_max) timer_fps_max=timer_fps;
+		// compute rotation
+		main_angle=100.0f*timer_global*PID;
+		}
+	if(timer_global-timer_global_buffer>0.01f)
+		{
+		timer_global_buffer=timer_global;
+		timer_frame=frame_counter;
+		frame_counter=0;
+		// start music
+		if(!mod_play&&timer_global>decrunch_time)
+			{
+			mod_play=true;
+			if(SNG) FMUSIC_PlaySong(mod);
+			}
+		/*if(liner_count_i!=0)
+			{
+			liner_count_wait++;
+			if(liner_count_wait%2==0&&liner_count_i>0)
+				{
+				liner_count+=liner_count_i;
+				if(liner_count>liner_length) liner_count=liner_length;
+				}
+			}*/
+		if(intro_flag)
+			{
+			if(intro_light<intro_length) intro_light++;
+			}
+		if(gear_flag)
+			{
+			fov=fov_base+15.0f*sinf(main_angle*0.25f);
+			bgd_base_r=base_r+0.1f*cosf(main_angle*0.125f);
+			bgd_base_g=base_g;
+			bgd_base_b=base_b+0.1f*cosf(main_angle*0.125f);
+			fog_color[0]=bgd_base_r;
+			fog_color[1]=bgd_base_g;
+			fog_color[2]=bgd_base_b;
+			glFogfv(GL_FOG_COLOR,fog_color);
+			hidden_r=(hidden_r>hidden_base_r)?hidden_r-hidden_inc:hidden_base_r;
+			hidden_g=(hidden_g>hidden_base_g)?hidden_g-hidden_inc:hidden_base_g;
+			hidden_b=(hidden_b>hidden_base_b)?hidden_b-hidden_inc:hidden_base_b;
+			}
+		if(synchro_flag)
+			{
+			angle=(main_angle-synchro_angle)*1.5f;
+			if(angle>90.0f*PID) synchro_flag=false;
+			synchro_value=1.0f-sinf(angle);
+			}
+		if(fade_flag)
+			{
+			angle=(main_angle-fade_angle)*1.25f;
+			if(angle>90.0f*PID) fade_flag=false;
+			fade_value=1.0f-sinf(angle);
+			}
+		}
+	if(SNG&&mod_play)
+		{
+		mod_prv_row=mod_row;
+		mod_row=FMUSIC_GetRow(mod);
+		//mod_time=FMUSIC_GetTime(mod);
+		if(mod_row!=mod_prv_row)
+			{
+			if(mod_row==0)
+				{
+				#if !DEBUG
+					mod_ord=FMUSIC_GetOrder(mod);
+				#endif
+				#if DEBUG
+					if(debug_test)
+						{
+						mod_ord=START;
+						debug_test=false;
+						}
+					else
+						{
+						mod_ord++;
+						}
+				#endif
+				}
+			if(mod_row%16==8) synchro();
+			switch(mod_ord)
+				{
+				case 0:
+					if(mod_row==0)
+						{
+						decrunch_flag=false;
+						border_flag=true;
+						intro_flag=true;
+						intro_h=0;
+						txt_intro=txt_intro1;
+						intro_length=(int)strlen(txt_intro);
+						bgd_base_r=0;
+						bgd_base_g=0;
+						bgd_base_b=0;
+						fog_color[0]=bgd_base_r;
+						fog_color[1]=bgd_base_g;
+						fog_color[2]=bgd_base_b;
+						glFogfv(GL_FOG_COLOR,fog_color);
+						flash();
+						}
+					break;
+				case 1:
+					if(mod_row==0)
+						{
+						intro_h=0;
+						txt_intro=txt_intro2;
+						intro_length=(int)strlen(txt_intro);
+						flash();
+						}
+					if(mod_row==48)
+						{
+						intro_angle=main_angle;
+						}
+					break;
+				case 2:
+					if(mod_row==0)
+						{
+						intro_flag=false;
+						border_flag=true;
+						razor_flag1=true;
+						cube_flag=true;
+						bgd_base_r=0.125f;
+						bgd_base_g=0.05f;
+						bgd_base_b=0.075f;
+						fog_color[0]=bgd_base_r;
+						fog_color[1]=bgd_base_g;
+						fog_color[2]=bgd_base_b;
+						glFogfv(GL_FOG_COLOR,fog_color);
+						razor_angle=main_angle;
+						razor_angle_transition=main_angle;
+						}
+					break;
+				case 3:
+					if(mod_row==48)
+						{
+						razor_flag1=false;
+						razor_flag2=true;
+						razor_angle_out=main_angle;
+						}
+					if(mod_row==58)
+						{
+						razor_angle_close=main_angle;
+						razor_close=true;
+						}
+					break;
+				case 4:
+					if(mod_row==0)
+						{
+						border_flag=true;
+						razor_flag2=false;
+						razor_close=false;
+						cube_flag=false;
+						gradient_flag=true;
+						credits_flag=true;
+						logo_flag=true;
+						gear_flag=true;
+						liner_flag=true;
+						txt=txt_info1;
+						calc_txt();
+						flash();
+						}
+					break;
+				case 8:
+					if(mod_row==0)
+						{
+						txt=txt_info2;
+						calc_txt();
+						hidden_color();
+						//flash();
+						}
+					break;
+				case 12:
+					if(mod_row==0)
+						{
+						txt=txt_logo;
+						calc_txt();
+						hidden_color();
+						//flash();
+						}
+					break;
+				case 16:
+					if(mod_row==0)
+						{
+						txt=txt_info3;
+						calc_txt();
+						hidden_color();
+						//flash();
+						}
+					break;
+				case 20:
+					if(mod_row==0)
+						{
+						txt=txt_info4;
+						calc_txt();
+						hidden_color();
+						//flash();
+						}
+					break;
+				case 24:
+					if(mod_row==0)
+						{
+						txt=txt_info5;
+						calc_txt();
+						hidden_color();
+						//flash();
+						}
+					break;
+				case 28:
+					if(mod_row==0)
+						{
+						txt=txt_info1;
+						calc_txt();
+						hidden_color();
+						//flash();
+						}
+					break;
+				case 7: case 11: case 15: case 19: case 23: case 27:
+					if(mod_row==48)
+						{
+						fade();
+						}
+					break;
+				}
+			}
+		}
+	// clear screen and depth buffer
+	init2d(screen_w,screen_h);
+	glClearColor(bgd_base_r,bgd_base_g,bgd_base_b,1.0f);
+	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+	glEnable(GL_FOG);
+	glDisable(GL_TEXTURE_2D);
+	// draw gradient
+	if(gradient_flag) glCallList(GRADIENT_LIST);
+	init3d(screen_w,screen_h);
+	glEnable(GL_DEPTH_TEST);
+	glDisable(GL_BLEND);
+	// draw gear
+	if(gear_flag)
+		{
+		angle=cosf(main_angle*0.25f);
+		a_y=40.0f*angle;
+		p_x=3.0f+4.0f*angle;
+		p_y=-6.0f-1.0f*angle;
+		p_z=-18.0f-1.0f*angle;
+		// gear 1
+		glLoadIdentity();
+		glTranslatef(p_x,p_y,p_z);
+		glRotatef(a_y,0.5f,1.0f,0);
+		glRotatef(main_angle*(360.0f/15.0f),0,0,1.0f);
+		glCallList(GEAR1_LIST);
+		// gear 2
+		gear_x=(float)((gear1+gear2+0.8f)*cos(0));
+		gear_y=(float)((gear1+gear2+0.8f)*sin(0));
+		glLoadIdentity();
+		glTranslatef(p_x,p_y,p_z);
+		glRotatef(a_y,0.5f,1.0f,0);
+		glTranslatef(gear_x,gear_y,0);
+		glRotatef(-main_angle*(360.0f/10.0f)-5.0f,0,0,1.0f);
+		glCallList(GEAR2_LIST);
+		// gear 3
+		gear_x=(float)((gear1+gear3+0.8f)*cos(135.0f*PID));
+		gear_y=(float)((gear1+gear3+0.8f)*sin(135.0f*PID));
+		hidden_x=gear_x;
+		hidden_y=gear_y;
+		glLoadIdentity();
+		glTranslatef(p_x,p_y,p_z);
+		glRotatef(a_y,0.5f,1.0f,0);
+		glTranslatef(gear_x,gear_y,0);
+		glRotatef(-main_angle*(360.0f/30.0f),0,0,1.0f);
+		glCallList(GEAR3_LIST);
+		// gear 4
+		gear_x=(float)((gear1+gear4+0.8f)*cos(60.0f*PID));
+		gear_y=(float)((gear1+gear4+0.8f)*sin(60.0f*PID));
+		glLoadIdentity();
+		glTranslatef(p_x,p_y,p_z);
+		glRotatef(a_y,0.5f,1.0f,0);
+		glTranslatef(gear_x,gear_y,0);
+		glRotatef(-main_angle*(360.0f/7.0f)+15.5f,0,0,1.0f);
+		glCallList(GEAR4_LIST);
+		// gear 5
+		gear_x=(float)((gear3+1.625f)*cos(135.0f*PID));
+		gear_y=(float)((gear3+1.625f)*sin(135.0f*PID));
+		glLoadIdentity();
+		glTranslatef(p_x,p_y,p_z);
+		glRotatef(a_y,0.5f,1.0f,0);
+		glTranslatef(gear_x,gear_y,0);
+		glRotatef(-main_angle*(360.0f/14.0f)-9.0f,0,0,1.0f);
+		glCallList(GEAR5_LIST);
+		// gear 6
+		gear_x=(float)((gear1+gear2+gear6+2.625f)*cos(60.0f*PID));
+		gear_y=(float)((gear1+gear2+gear6+2.625f)*sin(60.0f*PID));
+		glLoadIdentity();
+		glTranslatef(p_x,p_y,p_z);
+		glRotatef(a_y,0.5f,1.0f,0);
+		glTranslatef(gear_x,gear_y,0);
+		glRotatef(main_angle*(360.0f/12.0f)-8.0f,0,0,1.0f);
+		glCallList(GEAR6_LIST);
+		// gear 7
+		gear_x=2.0f;
+		gear_y=7.0f;
+		glLoadIdentity();
+		glTranslatef(p_x,p_y,p_z-8.0f);
+		glRotatef(a_y,0.5f,1.0f,0);
+		glTranslatef(gear_x,gear_y,0);
+		glRotatef(main_angle*(360.0f/40.0f),0,0,1.0f);
+		glCallList(GEAR7_LIST);
+		glTranslatef(0,0,-1.0f);
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_COLOR,GL_DST_ALPHA);
+		glRotatef(10.5f,0,0,1.0f);
+		triforce(false,gear7*0.9f,2.0f,triforce_r,triforce_g,triforce_b,0.2f);
+		triforce(true,gear7*0.9f,2.0f,triforce_r,triforce_g,triforce_b,0.2f);
+		glDisable(GL_BLEND);
+		}
+	// draw cube
+	glDisable(GL_DEPTH_TEST);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_COLOR,GL_ONE);
+	if(cube_flag)
+		{
+		z=razor_radius*cosf((main_angle-razor_angle)*0.2f);
+		fov=fov_base-30.0f*cosf((main_angle-razor_angle)*0.25f+90.0f*PID);
+		for(i=0;i<cube_n;i++)
+			{
+			glLoadIdentity();
+			glTranslatef(cube_position[i][0],cube_position[i][1],cube_position[i][2]+z*5.0f);
+			glRotatef(cube_rotation[i][3]+main_angle*20,cube_rotation[i][0],cube_rotation[i][1],cube_rotation[i][2]);
+			r=cube_color[i][0]+bgd_r;
+			g=cube_color[i][1]+bgd_g;
+			b=cube_color[i][2]+bgd_b;
+			cube(cube_size,r,g,b,0.2f,true);
+			cube(cube_size,b,r,g,0.2f,false);
+			}
+		}
+	glDisable(GL_FOG);
+	glBlendFunc(GL_SRC_COLOR,GL_ONE);//GL_SRC_COLOR,GL_ONE_MINUS_SRC_ALPHA);
+	glEnable(GL_TEXTURE_2D);
+	// draw razor
+	if(razor_flag1)
+		{
+		float tex_coord=0.5f;
+		if(polygon) glBindTexture(GL_TEXTURE_2D,IDB_RAZOR);
+		razor_z=razor_radius*cosf((main_angle-razor_angle)*razor_zoom);
+		glColor3f(razor_color,razor_color,razor_color);
+		for(i=0;i<razor_nx;i++)
+			{
+			for(j=0;j<razor_ny;j++)
+				{
+				glLoadIdentity();
+				angle=(main_angle-razor_angle)*80.0f-(i*20.0f+j*10.0f);
+				if(angle<0) angle=0;
+				if(angle>180.0f) angle=180.0f;
+				glTranslatef(-((razor_nx-1)*razor_size)+razor_size*2.0f*i,razor_y-((razor_ny-1)*razor_size)+razor_size*2.0f*j,razor_z);
+				glRotatef(180.0f+angle,1.0f,-1.0f,0);
+				glTranslatef(0,0,0.125f);
+				glBegin(GL_QUADS);
+					//glColor3f(razor_color,razor_color,razor_color);
+					glTexCoord2f(1.0f/razor_nx*(i+1),1.0f/razor_ny*(j+1)); glVertex3f( razor_size, razor_size,razor_width);
+					glTexCoord2f(1.0f/razor_nx*i    ,1.0f/razor_ny*(j+1)); glVertex3f(-razor_size, razor_size,razor_width);
+					glTexCoord2f(1.0f/razor_nx*i    ,1.0f/razor_ny*j    ); glVertex3f(-razor_size,-razor_size,razor_width);
+					glTexCoord2f(1.0f/razor_nx*(i+1),1.0f/razor_ny*j    ); glVertex3f( razor_size,-razor_size,razor_width);
+					//glColor3f(0.25f,razor_color*0.25f,razor_color*0.25f);
+					/*
+					glColor3f(0,0,0);
+					glTexCoord2f(1.0f/razor_nx*(i+tex_coord),1.0f/razor_ny*(j+tex_coord)); glVertex3f( razor_size, razor_size,-razor_width);
+					glTexCoord2f(1.0f/razor_nx*(i+tex_coord),1.0f/razor_ny*(j+tex_coord)); glVertex3f( razor_size,-razor_size,-razor_width);
+					glTexCoord2f(1.0f/razor_nx*(i+tex_coord),1.0f/razor_ny*(j+tex_coord)); glVertex3f(-razor_size,-razor_size,-razor_width);
+					glTexCoord2f(1.0f/razor_nx*(i+tex_coord),1.0f/razor_ny*(j+tex_coord)); glVertex3f(-razor_size, razor_size,-razor_width);
+					glColor3f(razor_color*0.625f,razor_color*0.625f,razor_color*0.625f);
+					glVertex3f(-razor_size, razor_size, razor_width);
+					glVertex3f(-razor_size, razor_size,-razor_width);
+					glVertex3f(-razor_size,-razor_size,-razor_width);
+					glVertex3f(-razor_size,-razor_size, razor_width);
+					glVertex3f( razor_size, razor_size, razor_width);
+					glVertex3f( razor_size,-razor_size, razor_width);
+					glVertex3f( razor_size,-razor_size,-razor_width);
+					glVertex3f( razor_size, razor_size,-razor_width);
+					glColor3f(razor_color*0.375f,razor_color*0.375f,razor_color*0.375f);
+					glVertex3f( razor_size,-razor_size, razor_width);
+					glVertex3f(-razor_size,-razor_size, razor_width);
+					glVertex3f(-razor_size,-razor_size,-razor_width);
+					glVertex3f( razor_size,-razor_size,-razor_width);
+					glVertex3f( razor_size, razor_size, razor_width);
+					glVertex3f( razor_size, razor_size,-razor_width);
+					glVertex3f(-razor_size, razor_size,-razor_width);
+					glVertex3f(-razor_size, razor_size, razor_width);
+					*/
+				glEnd();
+				}
+			}
+		}
+	if(razor_flag2)
+		{
+		if(polygon) glBindTexture(GL_TEXTURE_2D,IDB_RAZOR);
+		razor_z=razor_radius*cosf((main_angle-razor_angle)*razor_zoom);
+		glLoadIdentity();
+		glRotatef(5.0f,1.0f,0,0);
+		glTranslatef(0,razor_y,razor_z+0.125f);
+		glColor3f(razor_color,razor_color,razor_color);
+		for(i=0;i<razor_nx*2;i++)
+			{
+			angle=(main_angle-razor_angle_out)*120;
+			if(angle<0) angle=0;
+			if(angle>180.0f) angle=180.0f;
+			glLoadIdentity();
+			glTranslatef(-((razor_nx*2-1)*razor_size*0.5f)+razor_size*1.0f*i,razor_y,razor_z+0.125f);
+			glRotatef(-angle,0,1.0f,0);
+			glBegin(GL_QUADS);
+				glTexCoord2f(1.0f/(razor_nx*2)*(i+1),1.0f); glVertex3f( razor_size*0.5f, razor_size*razor_ny,razor_width);
+				glTexCoord2f(1.0f/(razor_nx*2)*i    ,1.0f); glVertex3f(-razor_size*0.5f, razor_size*razor_ny,razor_width);
+				glTexCoord2f(1.0f/(razor_nx*2)*i    ,   0); glVertex3f(-razor_size*0.5f,-razor_size*razor_ny,razor_width);
+				glTexCoord2f(1.0f/(razor_nx*2)*(i+1),   0); glVertex3f( razor_size*0.5f,-razor_size*razor_ny,razor_width);
+			glEnd();
+			}
+		}
+	if(polygon) glBindTexture(GL_TEXTURE_2D,IDB_FONT);
+	glBlendFunc(GL_ONE,GL_ONE);
+	// draw hidden
+	if(gear_flag)
+		{
+		for(i=0;i<hidden_length;i++)
+			{
+			car=(byte)txt_hidden[hidden_type][i];
+			if(car!=32)
+				{
+				glLoadIdentity();
+				glTranslatef(p_x,p_y,p_z);
+				glRotatef(a_y,0.5f,1.0f,0);
+				glTranslatef(hidden_x,hidden_y,0);
+				glRotatef(-main_angle*(360.0f/30.0f)+i*(360.0f/hidden_length),0,0,1.0f);
+				glTranslatef(0,8.9f,0.65f);
+				scale=1.0f+synchro_value*cosf(i*1.0f+synchro_value*8.0f)*0.5f;
+				glScalef(1.0f,scale,1.0f);
+				glBegin(GL_QUADS);
+				l_w=(car%16)/16.0f;
+				l_h=(car-car%16)/256.0f;
+				for(j=0;j<hidden_n;j++)
+					{
+					if(j<hidden_n-1)
+						{
+						c=0.15f;//0.5f-0.5f/hidden_n*j;
+						r=gear_r*c*fade_value;
+						g=gear_g*c*fade_value;
+						b=gear_b*c*fade_value;
+						}
+					else
+						{
+						c=1.15f;
+						r=hidden_r*c*fade_value;
+						g=hidden_g*c*fade_value;
+						b=hidden_b*c*fade_value;
+						}
+					glColor3f(r      ,g      ,b      ); glTexCoord2f(l_w+0.0620f,-l_h-0.0620f ); glVertex3f(-hidden_w*0.5f-hidden_m*0.5f, hidden_h*0.5f,j*hidden_z);
+					glColor3f(g*0.25f,g*0.25f,g*0.25f); glTexCoord2f(l_w+0.0620f,-l_h-0.03125f); glVertex3f(-hidden_w*0.5f+hidden_m     ,	            0,j*hidden_z);
+					glColor3f(r*0.25f,g*0.25f,b*0.25f); glTexCoord2f(l_w+0.0005f,-l_h-0.03125f); glVertex3f( hidden_w*0.5f-hidden_m     ,             0,j*hidden_z);
+					glColor3f(r      ,g      ,b      ); glTexCoord2f(l_w+0.0005f,-l_h-0.0620f ); glVertex3f( hidden_w*0.5f+hidden_m*0.5f, hidden_h*0.5f,j*hidden_z);
+					glColor3f(g*0.25f,g*0.25f,g*0.25f); glTexCoord2f(l_w+0.0620f,-l_h-0.03125f); glVertex3f(-hidden_w*0.5f-hidden_m     ,             0,j*hidden_z);
+					glColor3f(g      ,g      ,b      ); glTexCoord2f(l_w+0.0620f,-l_h-0.0005f ); glVertex3f(-hidden_w*0.5f+hidden_m*0.5f,-hidden_h*0.5f,j*hidden_z);
+					glColor3f(g      ,g      ,b      ); glTexCoord2f(l_w+0.0005f,-l_h-0.0005f ); glVertex3f( hidden_w*0.5f-hidden_m*0.5f,-hidden_h*0.5f,j*hidden_z);
+					glColor3f(g*0.25f,g*0.25f,b*0.25f); glTexCoord2f(l_w+0.0005f,-l_h-0.03125f); glVertex3f( hidden_w*0.5f+hidden_m     ,             0,j*hidden_z);
+					}
+				glEnd();
+				}
+			}
+		}
+	// draw liner
+	if(liner_flag)
+		{
+		liner_line=-1;
+		liner_count=(int)((main_angle-liner_angle)*20.0f)-10;
+		if(liner_count>liner_length) liner_count=liner_length;
+		for(i=0;i<liner_count;i++)
+			{
+			angle=main_angle+liner_i*0.02f;
+			car=(byte)txt[i];
+			liner_r=0.5f;
+			liner_g=0.4f;
+			liner_b=0.3f;
+			if(car<32)
+				{
+				liner_r=1.0f;
+				liner_g=0.375f;
+				liner_b=0.375f;
+				}
+			if((car>47&&car<58)||(car>64&&car<91)||(car>96&&car<123))
+				{
+				liner_r=1.0f;
+				liner_g=1.0f;
+				liner_b=1.0f;
+				}
+			if(car>160||i==liner_count)
+				{
+				liner_r=0.375f+0.625f*cosf(angle*2.0f);
+				liner_g=0.5f;
+				liner_b=0.375f+0.625f*sinf(angle*2.0f);
+				}
+			if(car!=13)
+				{
+				// compute position
+				p_x+=liner_size*1.75f;
+				if(car!=32)
+					{
+					liner_color=0.5f-(liner_count-i)*(0.02f); if(liner_color<0.08f) liner_color=0.08f;
+					glLoadIdentity();
+					glRotatef(-25.0f,1.0f,1.0f,0);
+					glTranslatef(-2.5f,2.25f,1.5f);
+					glTranslatef(p_x,p_y,liner_z+1.0f*sinf(angle));
+					a_z=30.0f*cosf(angle);
+					glRotatef(a_z,0,-1.0f,0);
+					l_w=(car%16)/16.0f;
+					l_h=(car-car%16)/256.0f;
+					glBegin(GL_QUADS);
+						glColor3f(liner_color*fade_value,liner_color*0.625f*fade_value,0.075f*fade_value);
+						for(j=0;j<10;j++)
+							{
+							glTexCoord2f(l_w+0.0620f,-l_h-0.0005f); glVertex3f( liner_size, liner_size+liner_size,-0.15f+j*0.025f);
+							glTexCoord2f(l_w+0.0005f,-l_h-0.0005f); glVertex3f(-liner_size, liner_size+liner_size,-0.15f+j*0.025f);
+							glTexCoord2f(l_w+0.0005f,-l_h-0.0620f); glVertex3f(-liner_size,-liner_size-liner_size,-0.15f+j*0.025f);
+							glTexCoord2f(l_w+0.0620f,-l_h-0.0620f); glVertex3f( liner_size,-liner_size-liner_size,-0.15f+j*0.025f);
+							}
+						glColor3f(liner_r*fade_value,liner_g*fade_value,liner_b*fade_value);
+						glTexCoord2f(l_w+0.0620f,-l_h-0.0005f); glVertex3f( liner_size, liner_size+liner_size,0.15f);
+						glTexCoord2f(l_w+0.0005f,-l_h-0.0005f); glVertex3f(-liner_size, liner_size+liner_size,0.15f);
+						glTexCoord2f(l_w+0.0005f,-l_h-0.0620f); glVertex3f(-liner_size,-liner_size-liner_size,0.15f);
+						glTexCoord2f(l_w+0.0620f,-l_h-0.0620f); glVertex3f( liner_size,-liner_size-liner_size,0.15f);
+					glEnd();
+					}
+				liner_i+=5;
+				}
+			else
+				{
+				liner_line++;
+				liner_i=0;
+				p_x=-(liner_max*liner_size*1.75f)*0.5f;
+				p_y=(l_n*liner_size*1.75f)-liner_line*liner_size*3.5f;
+				}
+			}
+		}
+	glDisable(GL_TEXTURE_2D);
+	// draw intro
+	if(intro_flag)
+		{
+		glBlendFunc(GL_ONE,GL_ONE);
+		glEnable(GL_TEXTURE_2D);
+		x=intro_x-intro_length*intro_size*1.75f*0.5f;
+		if(intro_angle>0)
+			{
+			angle=(main_angle-intro_angle)*1.25f;
+			if(angle>90.0f*PID) angle=90.0f*PID;
+			intro_h=intro_size*sinf(angle);
+			}
+		for(i=0;i<intro_length;i++)
+			{
+			angle=main_angle*1.5f+i*0.2f;
+			y=intro_size*2.825f+intro_size*2.0f*cosf(angle);
+			z=(intro_size-intro_h)*synchro_value*cosf(i*1.0f+synchro_value*8.0f)*0.375f;
+			for(j=0;j<24;j++)
+				{
+				c=0.0625f;
+				car=(byte)txt_intro[i];
+				switch(car)
+					{
+					case 2:
+						intro_r=0.375f;
+						intro_g=0.5f;
+						intro_b=0.625f;
+						break;
+					case 3:
+						intro_r=1.0f;
+						intro_g=0.25f;
+						intro_b=0.25f;
+						break;
+					default:
+						intro_r=0.5f+0.25f*cosf(angle*2.5f);
+						intro_g=0.5f;
+						intro_b=0.5f+0.25f*sinf(angle*2.5f);
+					}
+				if(i==intro_light-1&&i>0&&i<intro_length-1)
+					{
+					intro_r+=0.25f;
+					intro_g+=0.25f;
+					intro_b+=0.25f;
+					}
+				if(i==intro_light&&i>0&&i<intro_length-1)
+					{
+					intro_r+=0.5f;
+					intro_g+=0.5f;
+					intro_b+=0.5f;
+					}
+				if(j!=0)
+					{
+					intro_r*=c;
+					intro_g*=c;
+					intro_b*=c;
+					}
+				l_w=(car%16)/16.0f;
+				l_h=(car-car%16)/256.0f;
+				glLoadIdentity();
+				glColor3f(intro_r,intro_g,intro_b);
+				glRotatef(45.0f,1.0f,1.0f,0);
+				glTranslatef(x+i*intro_size*1.75f,intro_y+y,intro_z+(12-j)*intro_size*0.125f);
+				glBegin(GL_QUADS);
+					glTexCoord2f(l_w+0.0610f,-l_h-0.0015f); glVertex3f( intro_size, intro_size-z-intro_h,0);
+					glTexCoord2f(l_w+0.0015f,-l_h-0.0015f); glVertex3f(-intro_size, intro_size-z-intro_h,0);
+					glTexCoord2f(l_w+0.0015f,-l_h-0.0610f); glVertex3f(-intro_size,-intro_size+z+intro_h,0);
+					glTexCoord2f(l_w+0.0610f,-l_h-0.0610f); glVertex3f( intro_size,-intro_size+z+intro_h,0);
+				glEnd();
+				glLoadIdentity();
+				glColor3f(intro_r*0.375f,intro_g*0.375f,intro_b*0.375f);
+				glRotatef(45.0f,1.0f,1.0f,0);
+				glTranslatef(x+i*intro_size*1.75f,intro_y-y,intro_z+(12-j)*intro_size*0.125f);
+				glBegin(GL_QUADS);
+					glTexCoord2f(l_w+0.0610f,-l_h-0.0610f); glVertex3f( intro_size, intro_size-z-intro_h,0);
+					glTexCoord2f(l_w+0.0015f,-l_h-0.0610f); glVertex3f(-intro_size, intro_size-z-intro_h,0);
+					glTexCoord2f(l_w+0.0015f,-l_h-0.0015f); glVertex3f(-intro_size,-intro_size+z+intro_h,0);
+					glTexCoord2f(l_w+0.0610f,-l_h-0.0015f); glVertex3f( intro_size,-intro_size+z+intro_h,0);
+				glEnd();
+				}
+			}
+		glDisable(GL_TEXTURE_2D);
+		int intro_triforce_n=24;
+		radius=intro_size*32.0f;
+		for(i=0;i<intro_triforce_n;i++)
+			{
+			angle=main_angle*0.125f+360.0f*PID/intro_triforce_n*i;
+			x=radius*cosf(angle);
+			y=synchro_value*cosf(i*4.0f+synchro_value*8.0f)*0.05f;
+			z=radius*sinf(angle);
+			r=(0.1f+0.05f*sinf(angle))/(radius*1.25f)*(radius*1.25f+z);
+			g=0.1f/(radius*1.5f)*(radius*1.5f+z);
+			b=(0.1f+0.05f*cosf(angle))/(radius*1.25f)*(radius*1.25f+z);
+			r-=r/intro_size*intro_h;
+			g-=g/intro_size*intro_h;
+			b-=b/intro_size*intro_h;
+			glLoadIdentity();
+			glRotatef(45.0f,1.0f,1.0f,0);
+			glTranslatef(intro_x+x,(float)(intro_y+intro_size*1.25f+fabs(y)),intro_z+z-radius*0.25f);
+			glRotatef(-main_angle*40.0f,0,1.0f,0);
+			glRotatef(y*200.0f,0,0,1.0f);
+			glTranslatef(0,0,-intro_size*0.125f);
+			triforce(true,intro_size*2.0f,intro_size*0.25f,r,g,b,0.1f);
+			triforce(false,intro_size*2.0f,intro_size*0.25f,r,g,b,0.1f);
+			glLoadIdentity();
+			glRotatef(45.0f,1.0f,1.0f,0);
+			glTranslatef(intro_x+x,intro_y-intro_size*1.25f-y,intro_z+z-radius*0.25f);
+			glRotatef(-180,1.0f,0,0);
+			glRotatef(-main_angle*40.0f,0,-1.0f,0);
+			glRotatef(y*200.0f,0,0,1.0f);
+			glTranslatef(0,0,-intro_size*0.125f);
+			triforce(true,intro_size*2.0f,intro_size*0.25f,r*0.375f,g*0.375f,b*0.375f,0.0375f);
+			triforce(false,intro_size*2.0f,intro_size*0.25f,r*0.375f,g*0.375f,b*0.375f,0.0375f);
+			}
+		}
+	init2d(screen_w,screen_h);
+	// draw decrunch
+	if(decrunch_flag)
+		{
+		glLoadIdentity();
+		glBlendFunc(GL_SRC_COLOR,GL_DST_COLOR);
+		glBegin(GL_QUADS);
+		glColor3f((float)(CR*(144+rand()%112)),(float)(CR*(144+rand()%112)),(float)(CR*(144+rand()%112)));
+		for(i=0;i<screen_h;i++)
+			{
+			decrunch_y=i*decrunch_h;
+			decrunch_split=rand()%4;
+			if(decrunch_split==0)
+				{
+				if(rand()%4==0) glColor3f((float)(CR*(144+rand()%112)),(float)(CR*(144+rand()%112)),(float)(CR*(144+rand()%112)));
+				decrunch_split_w=rand()%(screen_w/16)*16;
+				glVertex2i(decrunch_split_w,decrunch_y-decrunch_h);
+				glVertex2i(0               ,decrunch_y-decrunch_h);
+				glVertex2i(0               ,decrunch_y);
+				glVertex2i(decrunch_split_w,decrunch_y);
+				if(rand()%8==0) glColor3f((float)(CR*(144+rand()%112)),(float)(CR*(144+rand()%112)),(float)(CR*(144+rand()%112)));
+				glVertex2i(screen_w        ,decrunch_y-decrunch_h);
+				glVertex2i(decrunch_split_w,decrunch_y-decrunch_h);
+				glVertex2i(decrunch_split_w,decrunch_y);
+				glVertex2i(screen_w        ,decrunch_y);
+				}
+			else
+				{
+				glVertex2i(screen_w        ,decrunch_y-decrunch_h);
+				glVertex2i(0               ,decrunch_y-decrunch_h);
+				glVertex2i(0               ,decrunch_y);
+				glVertex2i(screen_w        ,decrunch_y);
+				}
+			}
+		glEnd();	
+		}
+	// draw border
+	if(border_flag) glCallList(BORDER_LIST);
+	// draw credits
+	if(credits_flag)
+		{
+		credits_w=screen_average*0.025f;
+		credits_x=(float)fmod(main_angle*credits_w,credits_w);
+		int n=(int)(screen_w/credits_w+2);
+		glBlendFunc(GL_ONE,GL_ONE);
+		glColor3f(0.1f,0.1f,0.1f);
+		glLoadIdentity();
+		glTranslatef(0,credits_y+screen_average*0.06325f,0);
+		glBegin(GL_QUADS);
+			glVertex2f((float)screen_w,0);
+			glVertex2f(              0,0);
+			glVertex2f(              0,screen_average*0.01f);
+			glVertex2f((float)screen_w,screen_average*0.01f);
+		glEnd();
+		glLoadIdentity();
+		glTranslatef(credits_x-credits_w-credits_w-screen_average*0.000625f,screen_average*0.01f,0);
+		for(i=0;i<n;i++)
+			{
+			glTranslatef(credits_w,0,0);
+			glBegin(GL_QUADS);
+				glVertex2f( screen_average*0.007f,0);
+				glVertex2f(-screen_average*0.007f,0);
+				glVertex2f(-screen_average*0.004f,screen_average*0.01f);
+				glVertex2f( screen_average*0.004f,screen_average*0.01f);
+			glEnd();
+			}
+		glLoadIdentity();
+		glTranslatef(screen_w-screen_average*0.0525f,screen_average*0.0525f,0);
+		glRotatef(main_angle*(360.0f/10.0f)-11.0f,0,0,1.0f);
+		glCallList(GEAR2D1_LIST);
+		// ---
+		credits_y=screen_h-screen_average*0.07125f;
+		glLoadIdentity();
+		glBegin(GL_QUADS);
+			glVertex2f((float)screen_w,0);
+			glVertex2f(              0,0);
+			glVertex2f(              0,screen_average*0.01f);
+			glVertex2f((float)screen_w,screen_average*0.01f);
+		glEnd();
+		glLoadIdentity();
+		glTranslatef(-credits_x-credits_w+screen_average*0.00475f,credits_y+screen_average*0.05325f,0);
+		for(i=0;i<n;i++)
+			{
+			glTranslatef(credits_w,0,0);
+			glBegin(GL_QUADS);
+				glVertex2f( screen_average*0.004f,0);
+				glVertex2f(-screen_average*0.004f,0);
+				glVertex2f(-screen_average*0.007f,screen_average*0.01f);
+				glVertex2f( screen_average*0.007f,screen_average*0.01f);
+			glEnd();
+			}
+		glLoadIdentity();
+		glTranslatef(screen_average*0.075f,credits_y,0);
+		glRotatef(main_angle*(360.0f/13.0f)+11.5f,0,0,1.0f);
+		glCallList(GEAR2D2_LIST);
+		glLoadIdentity();
+		glTranslatef(screen_average*0.075f+screen_average*0.0775f,credits_y-screen_average*0.0405f,0);
+		glRotatef(-main_angle*(360.0f/8.0f)-8.0f,0,0,1.0f);
+		glCallList(GEAR2D3_LIST);
+		glLoadIdentity();
+		glTranslatef(screen_average*0.05f,screen_average*0.04f,0);
+		glRotatef(main_angle*(360.0f/6.0f)-9.5f,0,0,1.0f);
+		glCallList(GEAR2D4_LIST);
+		// credits text
+		glEnable(GL_TEXTURE_2D);
+		int txt_length=(int)strlen(txt_credits[0]);
+		glColor3f(0.3f,0.25f,0.2f);
+		for(i=0;i<txt_length;i++)
+			{
+			glLoadIdentity();
+			glTranslatef(screen_average*0.075f,credits_y,0);
+			glRotatef(main_angle*(360.0f/12.0f)-i*(360.0f/txt_length),0,0,1.0f);
+			glTranslatef(0,screen_average*0.0425f,0);
+			draw_char((byte)txt_credits[0][i],screen_average*0.012f,screen_average*0.0125f,-screen_average*0.000625f);
+			}
+		credits_color=0.625f+0.75f*cosf(main_angle); if(credits_color>0.625f) credits_color=0.625f;
+		if(credits_color<0)
+			{
+			if(credits_change)
+				{
+				credits_n+=3; if(credits_n>10) credits_n=1;
+				credits_change=false;
+				}
+			credits_color=0;
+			}
+		else
+			{
+			credits_change=true;
+			}
+		// credits text 1
+		credits_length=(int)strlen(txt_credits[credits_n]);
+		glColor3f(credits_color*0.75f,credits_color*0.375f,credits_color*0.5f);
+		for(i=0;i<credits_length;i++)
+			{
+			glLoadIdentity();
+			glTranslatef(screen_average*0.075f-((credits_length-1)*screen_average*0.007f)*0.5f+i*screen_average*0.007f,credits_y-screen_average*0.015f,0);
+			draw_char((byte)txt_credits[credits_n][i],screen_average*0.0075f,screen_average*0.0125f,0);
+			}
+		// credits text 2
+		credits_length=(int)strlen(txt_credits[credits_n+1]);
+		glColor3f(credits_color,credits_color,credits_color);
+		for(i=0;i<credits_length;i++)
+			{
+			glLoadIdentity();
+			glTranslatef(screen_average*0.075f-((credits_length-1)*screen_average*0.013f)*0.5f+i*screen_average*0.013f,credits_y,0);
+			draw_char((byte)txt_credits[credits_n+1][i],screen_average*0.015f,screen_average*0.02f,screen_average*0.001f);
+			}
+		// credits text 3
+		credits_length=(int)strlen(txt_credits[credits_n+2]);
+		for(i=0;i<credits_length;i++)
+			{
+			glLoadIdentity();
+			glTranslatef(screen_average*0.075f-((credits_length-1)*screen_average*0.007f)*0.5f+i*screen_average*0.007f,credits_y+screen_average*0.013f,0);
+			draw_char((byte)txt_credits[credits_n+2][i],screen_average*0.0075f,screen_average*0.0125f,0);
+			}
+		// draw crack
+		if(crack_flag)
+			{
+			crack_w=screen_average*0.02f;
+			crack_h=screen_average*0.04f;
+			crack_px=crack_w*0.85f;
+			crack_n=(int)(screen_w/crack_px)+2;
+			x=crack_x;
+			crack_x=(float)fmod(main_angle*0.125f*screen_average,crack_px);
+			if(crack_counter<-crack_n-4) crack_counter=-crack_n-4;
+			if(crack_x-x<0.0f) crack_counter++; if(crack_counter>crack_length) crack_counter=-crack_n;
+			for(i=0;i<crack_n;i++)
+				{
+				car=(byte)(crack_counter+i<0||crack_counter+i>crack_length)?32:txt_crack[crack_counter+i];
+				if(car!=32)
+					{
+					r=0.375f;
+					g=0.375f;
+					b=0.375f;
+					if(car<32)
+						{
+						r=0.5f;
+						g=0.2f;
+						b=0.1f;
+						}
+					if((car>47&&car<58)||(car>64&&car<91)||(car>96&&car<123))
+						{
+						r=0.25f;
+						g=0.375f;
+						b=0.5f;
+						}
+					float mul=(i-8)*0.2f; if(mul>1.0f) mul=1.0f;
+					r*=mul;
+					g*=mul;
+					b*=mul;
+					l_w=(car%16)/16.0f;
+					l_h=(car-car%16)/256.0f;
+					angle=main_angle*2.0f+(float)((crack_counter+i)*PID*8.0f);
+					y=credits_y+screen_average*0.02f-screen_average*0.02f*cosf(angle);//-screen_average*0.005f*synchro_value*cosf(i*1.0f+synchro_value*8.0f);
+					scale=0.5f+0.125f*cosf(angle);//+0.25f*synchro_value*cosf(i*0.2f+synchro_value*8.0f);
+					glLoadIdentity();
+					glTranslatef(-crack_x+i*crack_px+screen_average*0.01f*sinf(angle),y,0);
+					glRotatef(9.0f*sinf(angle),0,0,1.0f);
+					glBegin(GL_QUADS);
+					/*glColor3f(r*0.1f,g*0.1f,b*0.1f); glTexCoord2f(l_w+0.0620f,-l_h-0.0620f); glVertex2f( crack_w*0.5f, crack_h*scale);
+						glColor3f(r     ,g     ,b     ); glTexCoord2f(l_w+0.0620f,-l_h-0.0005f); glVertex2f( crack_w*0.5f,-crack_h*scale);
+						glColor3f(r     ,g     ,b     ); glTexCoord2f(l_w+0.0005f,-l_h-0.0005f); glVertex2f(-crack_w*0.5f,-crack_h*scale);
+						glColor3f(r*0.1f,g*0.1f,b*0.1f); glTexCoord2f(l_w+0.0005f,-l_h-0.0620f); glVertex2f(-crack_w*0.5f, crack_h*scale);*/
+						glColor3f(g     ,g     ,g     ); glTexCoord2f(l_w+0.0620f,-l_h-0.0620f ); glVertex2f( crack_w*0.5f, crack_h*scale);
+						glColor3f(r*0.2f,g*0.2f,b*0.2f); glTexCoord2f(l_w+0.0620f,-l_h-0.03125f); glVertex2f( crack_w*0.5f,             0);
+						glColor3f(r*0.2f,g*0.2f,b*0.2f); glTexCoord2f(l_w+0.0005f,-l_h-0.03125f); glVertex2f(-crack_w*0.5f,             0);
+						glColor3f(0     ,0     ,0     ); glTexCoord2f(l_w+0.0005f,-l_h-0.0620f ); glVertex2f(-crack_w*0.5f, crack_h*scale);
+						glColor3f(g,g,b);
+						glColor3f(r*0.2f,g*0.2f,b*0.2f); glTexCoord2f(l_w+0.0620f,-l_h-0.03125f); glVertex2f( crack_w*0.5f,             0);
+						glColor3f(r*2.0f,g*2.0f,b*2.0f); glTexCoord2f(l_w+0.0620f,-l_h-0.0005f ); glVertex2f( crack_w*0.5f,-crack_h*scale);
+						glColor3f(r     ,g     ,b     ); glTexCoord2f(l_w+0.0005f,-l_h-0.0005f ); glVertex2f(-crack_w*0.5f,-crack_h*scale);
+						glColor3f(r*0.2f,g*0.2f,b*0.2f); glTexCoord2f(l_w+0.0005f,-l_h-0.03125f); glVertex2f(-crack_w*0.5f,             0);
+					glEnd();
+					}
+				}
+			}
+		glDisable(GL_TEXTURE_2D);
+		}
+	// draw transition
+	if(razor_flag1)
+		{
+		glBlendFunc(GL_SRC_COLOR,GL_SRC_ALPHA);
+		transition_w=screen_w/transition_n;
+		angle=(main_angle-razor_angle_transition)*2.0f;
+		if(angle>30.0f*PID)
+			{
+			angle=0;
+			transition_i++;
+			razor_angle_transition=main_angle;
+			}
+		glLoadIdentity();
+		glTranslatef(-(float)transition_w,0,0);
+		for(i=0;i<transition_n;i++)
+			{
+			if(i<transition_i) y=1.0f;
+			if(i==transition_i-2) y=1.0f-cosf(angle+60.0f*PID);
+			if(i==transition_i-1) y=1.0f-cosf(angle+30.0f*PID);
+			if(i==transition_i) y=1.0f-cosf(angle);
+			if(i>transition_i) y=0;
+			glColor4f(0,0,0,y);
+			glTranslatef((float)transition_w,0,0);
+			glBegin(GL_QUADS);
+				glVertex2i(transition_w,       0);
+				glVertex2i(           0,       0);
+				glVertex2i(           0,screen_h);
+				glVertex2i(transition_w,screen_h);
+			glEnd();
+			}
+		}
+	// draw transition
+	if(razor_close)
+		{
+		glBlendFunc(GL_SRC_COLOR,GL_SRC_ALPHA);
+		angle=(main_angle-razor_angle_close)*4.0f;
+		if(angle>90.0f*PID) angle=90.0f*PID;
+		y=(screen_h/2)*sinf(angle);
+		c=1.0f/(screen_h/2)*y;
+		glColor3f(c,c,c);
+		glLoadIdentity();
+		glTranslatef(0,-(screen_h/2)+y,0);
+		glBegin(GL_QUADS);
+			glVertex2i(screen_w,         0);
+			glVertex2i(       0,         0);
+			glVertex2i(       0,screen_h/2);
+			glVertex2i(screen_w,screen_h/2);
+		glEnd();
+		glLoadIdentity();
+		glTranslatef(0,screen_h-y,0);
+		glBegin(GL_QUADS);
+			glVertex2i(screen_w,         0);
+			glVertex2i(       0,         0);
+			glVertex2i(       0,screen_h/2);
+			glVertex2i(screen_w,screen_h/2);
+		glEnd();
+		}
+	// draw flash
+	if(flash_flag)
+		{
+		glBlendFunc(GL_ONE,GL_ONE);
+		angle=(main_angle-flash_angle)*2.0f;
+		if(angle>90.0f*PID) flash_flag=false;
+		c=1.0f-sinf(angle);
+		glColor3f(c,c,c);
+		glLoadIdentity();
+		glBegin(GL_QUADS);
+			glVertex2i(screen_w,       0);
+			glVertex2i(       0,       0);
+			glVertex2i(       0,screen_h);
+			glVertex2i(screen_w,screen_h);
+		glEnd();
+		}
+	glEnable(GL_TEXTURE_2D);
+	// draw logo
+	if(logo_flag)
+		{
+		glLoadIdentity();
+		if(polygon) glBindTexture(GL_TEXTURE_2D,IDB_LOGO);
+		glBlendFunc(GL_SRC_COLOR,GL_ONE);
+		glTranslatef((float)(screen_w-logo_w-logo_margin),(float)(screen_h-logo_h-logo_margin),0);
+		glColor3f(1.0f,1.0f,1.0f);
+		glBegin(GL_QUADS);
+			glTexCoord2f(1.0f,1.0f); glVertex2i(logo_w,     0);
+			glTexCoord2f(   0,1.0f); glVertex2i(     0,     0);
+			glTexCoord2f(   0,   0); glVertex2i(     0,logo_h);
+			glTexCoord2f(1.0f,   0); glVertex2i(logo_w,logo_h);
+		glEnd();
+		}
+	// draw debug
+	if(debug_flag)
+		{
+		float debug_w=screen_average*0.0125f;
+		float debug_h=screen_average*0.025f;
+		if(polygon) glBindTexture(GL_TEXTURE_2D,IDB_FONT);
+		glBlendFunc(GL_ONE,GL_ONE);
+		glColor3f(0.25f,0.225f,0.2f);
+		char debug[192];
+		sprintf(debug,"*** DEBUG ***\nscreen=%d*%d\nfps=%3.1f\naverage=%3.1f\nfps min=%3.1f\nfps max=%3.1f\n%d frame(s)\nmusic [%02d-%02d]",screen_w,screen_h,timer_fps,timer_fps_average,timer_fps_min,timer_fps_max,timer_frame,mod_ord,mod_row);
+		glLoadIdentity();
+		glTranslatef(0,debug_h*0.65f,0);
+		j=0;
+		for(i=0;i<(int)strlen(debug);i++)
+			{
+			j++;
+			car=(byte)debug[i];
+			if(car==10)
+				{
+				glTranslatef(-j*debug_w*0.85f,debug_h*0.85f,0);
+				j=0;
+				}
+			glTranslatef(debug_w*0.85f,0,0);
+			draw_char(car,debug_w,debug_h,0);
+			}
+		}
+	// draw scanline
+	if(scanline_flag)
+		{
+		glLoadIdentity();
+		if(polygon) glBindTexture(GL_TEXTURE_2D,IDB_SCANLINE);
+		glBlendFunc(GL_DST_COLOR,GL_SRC_ALPHA);
+		glColor4f(1.0f,1.0f,1.0f,0.75f);
+		glBegin(GL_QUADS);
+			glTexCoord2f(1.0f,                     0); glVertex2i(screen_w,       0);
+			glTexCoord2f(   0,                     0); glVertex2i(       0,       0);
+			glTexCoord2f(   0,(float)(screen_h*0.5f)); glVertex2i(       0,screen_h);
+			glTexCoord2f(1.0f,(float)(screen_h*0.5f)); glVertex2i(screen_w,screen_h);
+		glEnd();
+		}
+	return true;
+	}
+
+void KillGLWindow(void)							// kill window
+	{
+	if(fullscreen)
+		{
+		ChangeDisplaySettings(NULL,0);	// switch back to desktop
+		ShowCursor(false);							// show mouse pointer
+		}
+	if(hRC)
+		{
+		if(!wglMakeCurrent(NULL,NULL)) MessageBox(NULL,"Release Of DC And RC Failed.","SHUTDOWN ERROR",MB_OK|MB_ICONINFORMATION);
+		if(!wglDeleteContext(hRC)) MessageBox(NULL,"Release Rendering Context Failed.","SHUTDOWN ERROR",MB_OK|MB_ICONINFORMATION);
+		hRC=NULL;
+		}
+	if(hDC&&!ReleaseDC(hWnd,hDC)) { MessageBox(NULL,"Release Device Context Failed.","SHUTDOWN ERROR",MB_OK|MB_ICONINFORMATION); hDC=NULL; }
+	if(hWnd&&!DestroyWindow(hWnd)) { MessageBox(NULL,"Could Not Release hWnd.","SHUTDOWN ERROR",MB_OK|MB_ICONINFORMATION); hWnd=NULL; }
+	if(!UnregisterClass("OpenGL",hInstance)) { MessageBox(NULL,"Could Not Unregister Class.","SHUTDOWN ERROR",MB_OK|MB_ICONINFORMATION); hInstance=NULL; }
+	delete timer;
+	}
+
+int CreateGLWindow(char* title)
+	{
+	GLuint PixelFormat;												// pixel format result
+	WNDCLASS wc;															// windows class structure
+	DWORD dwExStyle;													// window extended style
+	DWORD dwStyle;														// window style
+	RECT WindowRect;													// upper_left/lower_right values
+	int w=GetSystemMetrics(SM_CXSCREEN);
+	int h=GetSystemMetrics(SM_CYSCREEN);
+	screen_w=fullscreen?w:window_w;
+	screen_h=fullscreen?h:window_h;
+	screen_average=(screen_w+screen_h)/2;
+	timer_fps_min=32768;
+	timer_fps_max=0;
+	border_h=(int)(screen_h*0.125f);
+	decrunch_h=(int)(screen_h*0.01f);
+	WindowRect.left=(long)(fullscreen?0:2);		// set left value
+	WindowRect.right=(long)screen_w;					// set right value
+	WindowRect.top=(long)(fullscreen?0:2);		// set top value
+	WindowRect.bottom=(long)screen_h;					// set bottom value
+	pfd.cColorBits=window_color;							// set color depth
+	hInstance=GetModuleHandle(NULL);					// window instance
+	wc.style=CS_HREDRAW|CS_VREDRAW|CS_OWNDC;	// redraw on size, own DC for window
+	wc.lpfnWndProc=(WNDPROC) WndProc;					// WndProc handles messages
+	wc.cbClsExtra=0;													// no extra window data
+	wc.cbWndExtra=0;													// no extra window data
+	wc.hInstance=hInstance;										// set the instance
+	wc.hIcon=LoadIcon(hInstance,MAKEINTRESOURCE(IDI_ICON));	// load default icon
+	wc.hCursor=LoadCursor(NULL,IDC_ARROW);		// load arrow pointer
+	wc.hbrBackground=NULL;										// no background
+	wc.lpszMenuName=NULL;											// no menu
+	wc.lpszClassName="OpenGL";								// set class name
+	if(!RegisterClass(&wc))										// register window class
+		{
+		MessageBox(NULL,"Failed To Register The Window Class.","ERROR",MB_OK|MB_ICONEXCLAMATION);
+		return false;
+		}
+	if(fullscreen)
+		{
+		DEVMODE dmScreenSettings;															// device mode
+		memset(&dmScreenSettings,0,sizeof(dmScreenSettings));	// is memory cleared ?
+		dmScreenSettings.dmSize=sizeof(dmScreenSettings);			// devmode structure size
+		dmScreenSettings.dmPelsWidth=screen_w;								// screen width
+		dmScreenSettings.dmPelsHeight=screen_h;								// screen height
+		dmScreenSettings.dmBitsPerPel=window_color;						// bits per pixel
+		dmScreenSettings.dmFields=DM_BITSPERPEL|DM_PELSWIDTH|DM_PELSHEIGHT;
+		// set selected mode
+		if(ChangeDisplaySettings(&dmScreenSettings,CDS_FULLSCREEN)!=DISP_CHANGE_SUCCESSFUL)
+			{
+			if(MessageBox(NULL,"your video card sucks.\nuse windowed mode instead?","ERROR",MB_YESNO|MB_ICONEXCLAMATION)==IDYES)
+				{
+				fullscreen=false;
+				}
+			else
+				{
+				MessageBox(NULL,"we are closing.","ERROR",MB_OK|MB_ICONSTOP);
+				return false;
+				}
+			}
+		}
+	if(fullscreen)
+		{
+		dwExStyle=WS_EX_APPWINDOW;									// window extended style
+		dwStyle=WS_POPUP;														// windows style
+		ShowCursor(false);													// hide cursor
+		}
+	else
+		{
+		dwExStyle=WS_EX_APPWINDOW|WS_EX_WINDOWEDGE;	// window extended style
+		dwStyle=WS_OVERLAPPEDWINDOW;								// windows style
+		}
+	AdjustWindowRectEx(&WindowRect,dwStyle,false,dwExStyle);	// adjust window to requested size
+	// create window
+	if(!(hWnd=CreateWindowEx(dwExStyle,		// extended style for window
+		"OpenGL",														// class name
+		title,															// window title
+		(dwStyle|														// defined window style
+		WS_CLIPSIBLINGS|										// required window style
+		WS_CLIPCHILDREN)										// required window style
+		&~WS_THICKFRAME,										// window style (no-resize)
+		(int)((w-screen_w)/2),							// window position x
+		(int)((h-screen_h)/2),							// window position y
+		(WindowRect.right-WindowRect.left),	// window width
+		(WindowRect.bottom-WindowRect.top),	// window height
+		NULL,																// no parent window
+		NULL,																// no menu
+		hInstance,													// instance
+		NULL)))															// don't pass anything to WM_CREATE!
+		{
+		KillGLWindow();
+		MessageBox(NULL,"Window Creation Error.","ERROR",MB_OK|MB_ICONEXCLAMATION);
+		return false;
+		}
+	if(!(hDC=GetDC(hWnd)))	// Did We Get A Device Context?
+		{
+		KillGLWindow();
+		MessageBox(NULL,"Can't Create A GL Device Context.","ERROR",MB_OK|MB_ICONEXCLAMATION);
+		return false;
+		}
+	if(!(PixelFormat=ChoosePixelFormat(hDC,&pfd)))	// Did Windows Find A Matching Pixel Format?
+		{
+		KillGLWindow();
+		MessageBox(NULL,"Can't Find A Suitable PixelFormat.","ERROR",MB_OK|MB_ICONEXCLAMATION);
+		return false;
+		}
+	if(!SetPixelFormat(hDC,PixelFormat,&pfd))	// Are We Able To Set The Pixel Format?
+		{
+		KillGLWindow();
+		MessageBox(NULL,"Can't Set The PixelFormat.","ERROR",MB_OK|MB_ICONEXCLAMATION);
+		return false;
+		}
+	if(!(hRC=wglCreateContext(hDC)))	// Are We Able To Get A Rendering Context?
+		{
+		KillGLWindow();
+		MessageBox(NULL,"Can't Create A GL Rendering Context.","ERROR",MB_OK|MB_ICONEXCLAMATION);
+		return false;
+		}
+	if(!wglMakeCurrent(hDC,hRC))	// Try To Activate The Rendering Context
+		{
+		KillGLWindow();
+		MessageBox(NULL,"Can't Activate The GL Rendering Context.","ERROR",MB_OK|MB_ICONEXCLAMATION);
+		return false;
+		}
+	ShowWindow(hWnd,SW_SHOW);			// show window
+	SetForegroundWindow(hWnd);		// set higher priority
+	SetFocus(hWnd);								// set keyboard focus to window
+	init3d(screen_w,screen_h);		// set up perspective of GL screen
+	if(!InitGL())									// initialize GL window
+		{
+		KillGLWindow();
+		MessageBox(NULL,"Initialization Failed.","ERROR",MB_OK|MB_ICONEXCLAMATION);
+		return false;
+		}
+	return true;
+	}
+
+// window handle,window message,additional message,additional message
+LRESULT CALLBACK WndProc(HWND	hWnd,UINT	uMsg,WPARAM	wParam,LPARAM	lParam)
+	{
+	switch(uMsg)								// check windows messages
+		{
+		case WM_ACTIVATE:					// watch for window activate message
+			{
+			if(!HIWORD(wParam))			// check minimization state
+				{
+				active=true;					// program is active
+				}
+			else
+				{
+				active=false;					// program is no longer active
+				}
+			return 0;								// return to the message loop
+			}
+		case WM_SYSCOMMAND:				// intercept system commands
+			{
+			switch(wParam)					// check system calls
+				{
+				case SC_SCREENSAVE:		// screensaver trying to start ?
+				case SC_MONITORPOWER:	// monitor trying to enter powersave ?
+				return 0;							// prevent from happening
+				}
+			break;									// exit
+			}
+		case WM_CLOSE:						// close message ?
+			{
+			PostQuitMessage(0);			// post quit message
+			return 0;
+			}
+		case WM_KEYDOWN:					// key down ?
+			{
+			keys[wParam]=true;			// mark key as true
+			return 0;
+			}
+		case WM_KEYUP:						// key released ?
+			{
+			keys[wParam]=false;			// mark key as false
+			return 0;
+			}
+		/*
+	  case WM_SIZE:							// resize openGL window
+			{
+			ReSizeGLScene(LOWORD(lParam),HIWORD(lParam));	// loword=width,hiword=height
+			return 0;
+			}
+		*/
+		}
+	return DefWindowProc(hWnd,uMsg,wParam,lParam); // pass all unhandled messages to DefWindowProc
+	}
+
+// instance,previous instance,command line parameters,window show state
+int WINAPI WinMain(HINSTANCE hInstance,HINSTANCE hPrevInstance,LPSTR lpCmdLine,int nCmdShow)
+	{
+	MSG msg;																		// windows message structure
+	done=false;																	// exit loop
+	// ask for fullscreen mode
+	#if !DEBUG
+	fullscreen=(MessageBox(NULL,"fullscreen mode?",name,MB_YESNO|MB_ICONQUESTION)==IDYES)?true:false;
+	#endif
+	// create openGL window
+	if(!CreateGLWindow(name)) return 0;					// quit if window not created
+	// load and play music
+	if(SNG) load_song();
+	// main loop
+	while(!done)
+		{
+		if(PeekMessage(&msg,NULL,0,0,PM_REMOVE))	// a message is waiting ?
+			{
+			if(msg.message==WM_QUIT)								// a quit message ?
+				{
+				done=true;														// quit window
+				}
+			else																		// a window message ?
+				{
+				TranslateMessage(&msg);								// translate message
+				DispatchMessage(&msg);								// dispatch message
+				}
+			}
+		else																			// no messages
+			{
+			// draw the scene, watch for escape key and quit message from DrawGLScene()
+			if((active&&!DrawGLScene())||keys[VK_ESCAPE]) done=true; else SwapBuffers(hDC);	// exit or swap buffers
+			if(keys[VK_F1])													// F1 pressed ?
+				{
+				debug_flag=!debug_flag;
+				keys[VK_F1]=false;										// make key false again
+				}
+			if(keys[VK_F2])													// F2 pressed ?
+				{
+				hidden_flag=!hidden_flag;
+				hidden_color();
+				keys[VK_F2]=false;										// make key false again
+				}
+			if(keys[VK_F3])													// F3 pressed ?
+				{
+				polygon=!polygon;
+				glPolygonMode(GL_FRONT,polygon?GL_FILL:GL_LINE);
+				//if(polygon) glDisable(GL_LINE_SMOOTH); else glEnable(GL_LINE_SMOOTH);
+				keys[VK_F3]=false;										// make key false again
+				}
+			#if DEBUG
+				if(keys[VK_BACK])											// backspace pressed ?
+					{
+					pause=!pause;
+					keys[VK_BACK]=false;								// make key false again
+					}
+				if(keys[VK_TAB])											// tab pressed ?
+					{
+					synchro();
+					keys[VK_TAB]=false;									// make key false again
+					}
+				if(keys[VK_SPACE])										// space pressed ?
+					{
+					KillGLWindow();											// kill current window
+					fullscreen=!fullscreen;							// toggle fullscreen/windowed mode
+					timer_global=0;
+					timer_global_buffer=0;
+					if(!CreateGLWindow(name)) return 0;	// quit if window not created
+					keys[VK_SPACE]=false;								// make key false again
+					}
+			#endif
+			if(keys[VK_RETURN])											// return pressed ?
+				{
+				#if DEBUG
+					flash();
+					hidden_color();
+					calc_txt();
+					razor_color=1.0f;
+					razor_radius=0;
+				#endif
+				frame_total=0;
+				timer_fps_total=0;
+				timer_fps_min=32768;
+				timer_fps_max=0;
+				keys[VK_RETURN]=false;
+				}
+			}
+		}
+	// shutdown
+	if(SNG) FMUSIC_FreeSong(mod);	// stop and kill music
+	KillGLWindow();								// kill the window
+	return (msg.wParam);					// exit the program
+	}
